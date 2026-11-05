@@ -1,0 +1,40 @@
+name: star2lte-probe
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, herolte]
+    paths:
+      - "shim/star2lte/**"
+      - "shim/fdt.c"
+      - "shim/fdt.h"
+      - ".github/workflows/star2lte-probe.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install aarch64 cross toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu
+
+      - name: Build stage-0 probe
+        run: sh shim/star2lte/build.sh
+
+      - name: Inspect probe
+        run: |
+          ls -l shim/star2lte/out
+          file shim/star2lte/out/probe.Image
+          od -An -tx1 -N64 shim/star2lte/out/probe.Image
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: star2lte-probe
+          path: shim/star2lte/out/probe.Image
+          if-no-files-found: error
+          retention-days: 30
