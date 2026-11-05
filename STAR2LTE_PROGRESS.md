@@ -58,6 +58,20 @@ python3 tools/star2lte-pack-boot.py pack STOCK_BOOT.img \
 
 Then back up BOOT and flash only BOOT from TWRP.
 
+## Build status (2026-11-06)
+
+- CI `star2lte-probe` run **42122702768** passed on `ubuntu-latest`
+  (17 s). Artifact `star2lte-probe` = `probe.Image`.
+- `probe.Image`: 10,960 bytes; arm64 header `text_offset=0x80000`,
+  `flags=0xa`; `code0=0x14000010` (branch to entry at +0x40).
+- Packed against the user's LineageOS 23.2 `boot.img`:
+  `star2lte-probe-boot.img`, 1,892,368 bytes, SHA-256
+  `0ad8895ce81ffc1edd85576f2490c87aab06194f8a2b5c86d088769875ec0e7b`.
+  Kernel 10,960 B at `0x10008000`, stock ramdisk 1,572,690 B at
+  `0x11000000`, DTBH v2 chip 9810 (`platform 0x50a6`) preserved,
+  `SEANDROIDENFORCE` marker present.
+- **Build success only. Nothing has been flashed or run on the phone.**
+
 ## Open questions for the first on-device run
 
 - Does S-Boot boot a raw Image packed with this header, or does it
