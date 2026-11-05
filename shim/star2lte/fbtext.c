@@ -14,7 +14,9 @@
 #define CELL_W (6U * SCALE)
 #define CELL_H (10U * SCALE)
 #define LEFT 36U
-#define TOP 200U
+/* This unit's top half is physically damaged; keep the report in the
+ * bottom half of the 1440x2960 panel. 20 lines * 60 px end at y=2682. */
+#define TOP 1560U
 
 /* The same compact 5x7 font as the a5xelte/herolte display console. */
 struct glyph { char ch; uint8_t rows[7]; };
