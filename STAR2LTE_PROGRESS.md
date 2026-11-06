@@ -92,6 +92,12 @@ firmware) is the undo path, also flashed as AP.
   `0x10008000`), not as proof that S-Boot passes no DTB.
 - Probe v2 (this commit) prints X0-X3 and the word at each, plus a bounded
   FDT scan. Its on-device report is pending.
+- v2 `probe.Image`: 11,984 bytes, CI run **42134174676** passed; packed as
+  `probe-v2-oneui-boot.img`, 2,738,192 bytes, SHA-256
+  `579deb65829a4206b7307a70a98fba7f7a8ad93601618b5049562e40f59087f2`;
+  `star2lte-probe-boot.tar` (SHA-256
+  `4485142da7411359f69f88cc8e436a52b50a88df6c9f70b7c179502fa1bc3e75`)
+  rebuilt from it. **Build success only; v2 has not run on the phone.**
 
 ## Open questions after the probe v1 run
 
