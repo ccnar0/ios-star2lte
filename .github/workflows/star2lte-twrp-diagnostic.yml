@@ -1,0 +1,47 @@
+name: star2lte-twrp-diagnostic
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, codex/twrp-diagnostic-zip]
+    paths:
+      - "tools/star2lte-twrp/**"
+      - ".github/workflows/star2lte-twrp-diagnostic.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate installer shell syntax
+        run: |
+          sh -n tools/star2lte-twrp/update-binary
+          grep -q '^#!/sbin/sh' tools/star2lte-twrp/update-binary
+      - name: Build and verify TWRP ZIP
+        run: |
+          python3 tools/star2lte-twrp/package.py
+          python3 - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+          p = Path("out/star2lte-twrp-diagnostic.zip")
+          with ZipFile(p) as z:
+              assert z.testzip() is None
+              names = set(z.namelist())
+              assert "META-INF/com/google/android/update-binary" in names
+              script = z.read("META-INF/com/google/android/update-binary").decode()
+              forbidden = ("dd if=", "flash_image", "blockdev --set", "mkfs.", "erase_image")
+              assert not any(x in script for x in forbidden), "Unexpected destructive command found"
+              info = z.getinfo("META-INF/com/google/android/update-binary")
+              assert (info.external_attr >> 16) & 0o111, "update-binary missing executable bit"
+          print(f"Verified {p} ({p.stat().st_size} bytes)")
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: star2lte-twrp-diagnostic
+          path: out/star2lte-twrp-diagnostic.zip
+          if-no-files-found: error
+          retention-days: 30
