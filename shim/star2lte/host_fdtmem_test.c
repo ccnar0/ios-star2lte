@@ -115,6 +115,8 @@ int main(int argc, char **argv)
     EXPECT(!has(rec, st.count, 'D', "tima", 0, 0));
     EXPECT(st.initrd_start == 0x82000000ULL && st.initrd_end == 0x821fffffULL);
 
+    EXPECT(fdtmem_scan((uintptr_t)buf, NULL, 1, &st) < 0);
+    EXPECT(fdtmem_scan((uintptr_t)buf, rec, 64, NULL) < 0);
     for (unsigned mode = 0; mode < 5; ++mode)
         expect_bad(buf, len, mode);
 
