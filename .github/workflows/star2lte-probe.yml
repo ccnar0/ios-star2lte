@@ -8,6 +8,7 @@ on:
       - "shim/star2lte/**"
       - "shim/fdt.c"
       - "shim/fdt.h"
+      - "tools/mkadt_star2lte.py"
       - ".github/workflows/star2lte-probe.yml"
 
 jobs:
@@ -23,6 +24,9 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu \
             device-tree-compiler
+
+      - name: Check STAR2LTE ADT generator syntax
+        run: python3 -m py_compile tools/mkadt_star2lte.py
 
       - name: Build stage-0 probe and memory-map image
         run: sh shim/star2lte/build.sh
