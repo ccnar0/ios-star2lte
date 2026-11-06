@@ -4,7 +4,7 @@ Updated: 2026-11-06
 
 ## Status
 
-A device-specific Odin AP test package was generated locally from the user's uploaded stock `boot.img.lz4` and the CI-built `memmap.Image`. This is a packaging/artifact-validation result only. The memory-map probe has **not** yet been physically tested on the phone.
+The device-specific Odin AP package was booted on the physical SM-G965F. The user uploaded both photographed pages from the 2026-11-06 run under `test-results/memmap-2026-11-06/`. This is physical-device evidence for the memory-map probe only; it is not an XNU boot.
 
 The generated image is a diagnostic bare-metal memory-map probe, not XNU and not an iOS ROM.
 
@@ -33,11 +33,21 @@ Use the repository's `tools/star2lte-pack-boot.py` with the matching stock BOOT 
 
 The generated stock-derived BOOT image and Odin TAR are intentionally **not committed**. They contain stock firmware components and are device/firmware-specific. Keep them as local test artifacts; commit source, scripts, workflow definitions and non-sensitive test notes only.
 
-Physical test remains pending. If testing:
+Physical test completed and reviewed. The two pages show 20 records total, including five RAM (`M`) ranges, 11 fixed reservations (`R`), and four dynamic pools (`D`). The five RAM ranges are:
+
+- `0x80000000 + 0x3C800000`
+- `0xC0000000 + 0x20000000`
+- `0xE1900000 + 0x1E700000`
+- `0x880000000 + 0x80000000`
+- `0x900000000 + 0x80000000`
+
+Total reported DRAM: 6,063 MiB (~5.92 GiB). The FDT pointer is `0x8A000000`. The initrd start/end text is not legible enough in the photos to record; no safe XNU RAM window has been selected yet. The photos show no visible dropped-record indicator. The diagnostic probe's physical run does not mean XNU is bootable.
+
+If repeating the test:
 1. Verify the handset is the Exynos SM-G965F/SM-G965FD variant and the input BOOT matches its firmware.
 2. In Odin select AP only; do not select Re-Partition or PIT.
 3. Keep untouched stock firmware/BOOT available for recovery.
 4. Photograph every displayed memory-map page and record the result in `STAR2LTE_PROGRESS.md`.
-5. Do not claim the map is validated until the phone has displayed it and the full output has been reviewed.
+5. Keep the uploaded original photos; repeat only if a clearer initrd/reservation capture is needed.
 
 No XNU kernel was included in this package and no XNU boot is claimed.
