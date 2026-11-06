@@ -54,7 +54,7 @@ static unsigned put_dec(char *dst, unsigned n, unsigned v)
 
 static void show_rec(unsigned row, const struct fdtmem_rec *r)
 {
-    char line[56];
+    char line[96];
     unsigned n = 0;
     line[n++] = r->kind;
     line[n++] = ' ';
@@ -64,6 +64,28 @@ static void show_rec(unsigned row, const struct fdtmem_rec *r)
     n = put_hex(line, n, r->base);
     line[n++] = ' ';
     n = put_hex(line, n, r->size);
+    if (r->kind == FDTMEM_DYN) {
+        line[n++] = ' ';
+        line[n++] = 'A';
+        n = put_hex(line, n, r->alignment);
+        if (r->alloc_range_count) {
+            line[n++] = ' ';
+            line[n++] = 'R';
+            n = put_hex(line, n, r->alloc_base);
+            line[n++] = '+';
+            n = put_hex(line, n, r->alloc_size);
+            if (r->alloc_range_count > 1) {
+                line[n++] = ' ';
+                line[n++] = 'N';
+                n = put_dec(line, n, r->alloc_range_count);
+            }
+        }
+        if (r->flags) {
+            line[n++] = ' ';
+            line[n++] = 'F';
+            n = put_hex(line, n, r->flags);
+        }
+    }
     line[n] = 0;
     star2lte_fb_text(row, line);
 }
