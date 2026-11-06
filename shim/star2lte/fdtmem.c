@@ -169,6 +169,8 @@ int fdtmem_scan(uintptr_t fdt, struct fdtmem_rec *rec, unsigned max,
     unsigned name_lens[MAX_DEPTH + 1];
     uint32_t ac[MAX_DEPTH + 1], sc[MAX_DEPTH + 1];
     int reg_seen[MAX_DEPTH + 1];
+    int enabled[MAX_DEPTH + 1];
+    unsigned record_start[MAX_DEPTH + 1], dropped_start[MAX_DEPTH + 1];
     uint64_t pending_size[MAX_DEPTH + 1];
     int depth = 0, root_seen = 0, ended = 0;
     uint32_t p = off_struct, end = off_struct + struct_size;
@@ -198,15 +200,23 @@ int fdtmem_scan(uintptr_t fdt, struct fdtmem_rec *rec, unsigned max,
                 ac[depth] = 2;
                 sc[depth] = 1;
                 reg_seen[depth] = 0;
+                enabled[depth] = 1;
+                record_start[depth] = st->count;
+                dropped_start[depth] = st->dropped;
                 pending_size[depth] = 0;
             }
             p += padded;
         } else if (tok == FDT_END_NODE) {
             if (depth <= 0)
                 return -4;
-            if (depth == 3 && str_starts(names[2], name_lens[2], "reserved-memory") &&
+            if (depth == 3 && enabled[3] &&
+                str_starts(names[2], name_lens[2], "reserved-memory") &&
                 !reg_seen[3] && pending_size[3])
                 add(&c, names[3], name_lens[3], FDTMEM_DYN, 0, pending_size[3]);
+            if (depth <= MAX_DEPTH && !enabled[depth]) {
+                st->count = record_start[depth];
+                st->dropped = dropped_start[depth];
+            }
             --depth;
         } else if (tok == FDT_PROP) {
             if (p > end - 8U)
@@ -228,21 +238,26 @@ int fdtmem_scan(uintptr_t fdt, struct fdtmem_rec *rec, unsigned max,
             if (depth < 1 || depth > MAX_DEPTH)
                 continue;
             uintptr_t data = fdt + data_off;
-            if (str_eq(pname, pname_len + 1U, "#address-cells") && len == 4) {
+            if (str_eq(pname, pname_len + 1U, "status") &&
+                str_eq((const char *)data, len, "disabled")) {
+                enabled[depth] = 0;
+                st->count = record_start[depth];
+                st->dropped = dropped_start[depth];
+            } else if (str_eq(pname, pname_len + 1U, "#address-cells") && len == 4) {
                 ac[depth] = be32(data);
             } else if (str_eq(pname, pname_len + 1U, "#size-cells") && len == 4) {
                 sc[depth] = be32(data);
             } else if (depth == 2 &&
                        str_starts(names[2], name_lens[2], "memory") &&
                        str_eq(pname, pname_len + 1U, "reg")) {
-                if (add_reg(&c, names[2], name_lens[2], FDTMEM_RAM,
+                if (enabled[2] && add_reg(&c, names[2], name_lens[2], FDTMEM_RAM,
                             data, len, ac[1], sc[1]))
                     return -6;
             } else if (depth == 3 &&
                        str_starts(names[2], name_lens[2], "reserved-memory")) {
                 if (str_eq(pname, pname_len + 1U, "reg")) {
                     reg_seen[3] = 1;
-                    if (add_reg(&c, names[3], name_lens[3], FDTMEM_RESV,
+                    if (enabled[3] && add_reg(&c, names[3], name_lens[3], FDTMEM_RESV,
                                 data, len, ac[2], sc[2]))
                         return -6;
                 } else if (str_eq(pname, pname_len + 1U, "size") &&
