@@ -136,6 +136,7 @@ int fdtmem_scan(uintptr_t fdt, struct fdtmem_rec *rec, unsigned max,
         struct_size > total - off_struct ||
         off_str < 40 || off_str > total ||
         str_size > total - off_str ||
+        !(off_struct + struct_size <= off_str || off_str >= off_struct + struct_size) ||
         off_rsv < 40 || off_rsv > total || total - off_rsv < 16 ||
         !struct_size || !str_size)
         return -2;
