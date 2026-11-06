@@ -1,7 +1,7 @@
 # iOS 16 bring-up for Samsung Galaxy S9+ (star2lte)
 
 **Target:** Samsung Galaxy S9+ Exynos, **SM-G965F / SM-G965FD**, SoC Exynos 9810.  
-**Current stage (2026-11-06):** Stage 0 boot-handoff probing is confirmed on the physical phone. The next task is to read the live S-Boot memory map before selecting a safe XNU RAM window. **XNU has not been ported to or booted on star2lte yet.**
+**Current stage (2026-11-06):** Stage 0 handoff and the live FDT memory-map probe are confirmed on the physical SM-G965F. The next task is an isolated STAR2LTE XNU machine-config/build target and a minimal non-flashing loader. **XNU has not been ported to or booted on star2lte yet.**
 
 This repository contains earlier HEROLTE (Galaxy S7) and A5XELTE work as reference material. Those targets are not the current device. The active S9+ work lives in `shim/star2lte/`, `tools/star2lte-*`, `.github/workflows/star2lte-probe.yml`, and [STAR2LTE_PROGRESS.md](STAR2LTE_PROGRESS.md).
 
@@ -16,7 +16,7 @@ This repository contains earlier HEROLTE (Galaxy S7) and A5XELTE work as referen
 | Kernel load address | Probe v2 reports `0x80150000` |
 | Timer | `CNTFRQ_EL0` is zero; measured probe uses the 26 MHz fallback from the device tree |
 | Page-size capability | 16 KiB translation granule is supported; the XNU base configuration is still 4 KiB |
-| Memory map | FDT walker passes host tests; **live phone memory/reserved ranges still need to be captured** |
+| Memory map | Physical probe displayed five DRAM banks, 11 fixed reservations and four dynamic pools; initrd bounds need a clearer capture |
 | XNU machine config | Not started |
 | XNU loader, UFS and DECON/DSIM drivers | Not started |
 | iOS userland | Not running on this device |
