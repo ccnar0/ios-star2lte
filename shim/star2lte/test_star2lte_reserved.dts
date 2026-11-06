@@ -41,6 +41,7 @@
         video_stream {
             ion,reusable;
             size = <0x06c00000>;
+            alignment = <0x00200000>;
             alloc-ranges = <0 0x40000000 0xb0000000>;
         };
     };

@@ -57,6 +57,17 @@ int main(int argc, char **argv)
     EXPECT(!has(rec, st.count, 'R', "tima_region", 0xb8000000ULL, 0x200000ULL));
     EXPECT(!has(rec, st.count, 'R', "header", 0xfda00000ULL, 0x10000ULL));
 
+    for (unsigned i = 0; i < st.count; ++i) {
+        if (rec[i].kind == 'D' && !strcmp(rec[i].name, "video_stream")) {
+            EXPECT(rec[i].alignment == 0x00200000ULL);
+            EXPECT(rec[i].alloc_range_count == 1);
+            EXPECT(rec[i].alloc_base == 0x40000000ULL);
+            EXPECT(rec[i].alloc_size == 0xb0000000ULL);
+            EXPECT((rec[i].flags & FDTMEM_F_REUSABLE) != 0);
+            EXPECT((rec[i].flags & FDTMEM_F_NO_MAP) == 0);
+        }
+    }
+
     free(buf);
     printf(fails ? "FAILED (%d)\n" : "OK\n", fails);
     return fails != 0;

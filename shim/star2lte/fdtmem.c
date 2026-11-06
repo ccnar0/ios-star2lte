@@ -80,8 +80,13 @@ static void add(struct ctx *c, const char *name, unsigned name_len, char kind,
     struct fdtmem_rec *r = &c->rec[c->st->count++];
     copy_name(r->name, name, name_len, FDTMEM_NAME);
     r->kind = kind;
+    r->flags = 0;
+    r->alloc_range_count = 0;
     r->base = base;
     r->size = size;
+    r->alignment = 0;
+    r->alloc_base = 0;
+    r->alloc_size = 0;
 }
 
 static uint64_t cells(uintptr_t a, uint32_t n)
@@ -174,6 +179,11 @@ int fdtmem_scan(uintptr_t fdt, struct fdtmem_rec *rec, unsigned max,
     int enabled[MAX_DEPTH + 1];
     unsigned record_start[MAX_DEPTH + 1], dropped_start[MAX_DEPTH + 1];
     uint64_t pending_size[MAX_DEPTH + 1];
+    uint64_t pending_alignment[MAX_DEPTH + 1];
+    uint64_t pending_alloc_base[MAX_DEPTH + 1];
+    uint64_t pending_alloc_size[MAX_DEPTH + 1];
+    uint32_t pending_alloc_count[MAX_DEPTH + 1];
+    uint32_t pending_flags[MAX_DEPTH + 1];
     int depth = 0, root_seen = 0, ended = 0;
     uint32_t p = off_struct, end = off_struct + struct_size;
 
@@ -206,6 +216,11 @@ int fdtmem_scan(uintptr_t fdt, struct fdtmem_rec *rec, unsigned max,
                 record_start[depth] = st->count;
                 dropped_start[depth] = st->dropped;
                 pending_size[depth] = 0;
+                pending_alignment[depth] = 0;
+                pending_alloc_base[depth] = 0;
+                pending_alloc_size[depth] = 0;
+                pending_alloc_count[depth] = 0;
+                pending_flags[depth] = 0;
             }
             p += padded;
         } else if (tok == FDT_END_NODE) {
@@ -213,8 +228,18 @@ int fdtmem_scan(uintptr_t fdt, struct fdtmem_rec *rec, unsigned max,
                 return -4;
             if (depth == 3 && enabled[3] &&
                 str_starts(names[2], name_lens[2], "reserved-memory") &&
-                !reg_seen[3] && pending_size[3])
+                !reg_seen[3] && pending_size[3]) {
+                unsigned before = st->count;
                 add(&c, names[3], name_lens[3], FDTMEM_DYN, 0, pending_size[3]);
+                if (st->count > before) {
+                    struct fdtmem_rec *r = &rec[before];
+                    r->alignment = pending_alignment[3];
+                    r->alloc_base = pending_alloc_base[3];
+                    r->alloc_size = pending_alloc_size[3];
+                    r->alloc_range_count = pending_alloc_count[3];
+                    r->flags = pending_flags[3];
+                }
+            }
             if (depth <= MAX_DEPTH && !enabled[depth]) {
                 st->count = record_start[depth];
                 st->dropped = dropped_start[depth];
@@ -265,6 +290,26 @@ int fdtmem_scan(uintptr_t fdt, struct fdtmem_rec *rec, unsigned max,
                 } else if (str_eq(pname, pname_len + 1U, "size") &&
                            (len == 4 || len == 8)) {
                     pending_size[3] = cells(data, len / 4U);
+                } else if (str_eq(pname, pname_len + 1U, "alignment") &&
+                           (len == 4 || len == 8)) {
+                    pending_alignment[3] = cells(data, len / 4U);
+                } else if (str_eq(pname, pname_len + 1U, "alloc-ranges")) {
+                    uint32_t stride = (ac[2] + sc[2]) * 4U;
+                    if (ac[2] < 1 || ac[2] > 2 ||
+                        sc[2] < 1 || sc[2] > 2 || !stride || len % stride)
+                        return -6;
+                    for (uint32_t off = 0; off < len; off += stride) {
+                        if (!pending_alloc_count[3]) {
+                            pending_alloc_base[3] = cells(data + off, ac[2]);
+                            pending_alloc_size[3] = cells(data + off + ac[2] * 4U, sc[2]);
+                        }
+                        ++pending_alloc_count[3];
+                    }
+                } else if (str_eq(pname, pname_len + 1U, "no-map") && len == 0) {
+                    pending_flags[3] |= FDTMEM_F_NO_MAP;
+                } else if ((str_eq(pname, pname_len + 1U, "reusable") ||
+                            str_eq(pname, pname_len + 1U, "ion,reusable")) && len == 0) {
+                    pending_flags[3] |= FDTMEM_F_REUSABLE;
                 }
             } else if (depth == 2 &&
                        str_eq(names[2], name_lens[2] + 1U, "chosen") &&
