@@ -10,8 +10,8 @@ on:
         description: RELEASE / DEVELOPMENT / DEBUG
         default: DEVELOPMENT
       machine_config:
-        description: xnu MACHINE_CONFIG (HEROLTE = Galaxy S7, A5XELTE, SWEET)
-        default: HEROLTE
+        description: xnu MACHINE_CONFIG (STAR2LTE = initial compile-only Galaxy S9+ target)
+        default: STAR2LTE
       keep_going:
         description: make -k (collect all compile errors in one run)
         default: "true"
@@ -19,7 +19,7 @@ on:
         description: GitHub runner image (empty = macos-15-intel)
         default: ""
   push:
-    branches: [main, herolte, codex/a5xelte-bringup]
+    branches: [main, herolte, codex/a5xelte-bringup, codex/star2lte-xnu-target]
     paths:
       - "xnu/patches/**"
       - ".github/workflows/xnu.yml"
@@ -33,7 +33,7 @@ env:
   DXB_SHA: 663906528d1cd5ea8fde7de6f16de73db9511549
   MACOS_VERSION: ${{ inputs.macos_version || '13.5' }}
   KERNEL_CONFIG: ${{ inputs.kernel_config || 'DEVELOPMENT' }}
-  MACHINE_CONFIG: ${{ inputs.machine_config || 'HEROLTE' }}
+  MACHINE_CONFIG: ${{ inputs.machine_config || 'STAR2LTE' }}
 
 jobs:
   build:
@@ -68,6 +68,9 @@ jobs:
           if config in ('A5XELTE', 'HEROLTE'):
               new = ('ARCHS="arm64" VALID_ARCHS="arm64" OTHER_CFLAGS="-mkernel -nostdinc '
                      '-Wno-packed -mcpu=cortex-a53 -march=armv8-a+crypto"')
+          elif config == 'STAR2LTE':
+              new = ('ARCHS="arm64" VALID_ARCHS="arm64" OTHER_CFLAGS="-mkernel -nostdinc '
+                     '-Wno-packed -mcpu=cortex-a55 -march=armv8.2-a+crypto"')
           else:
               new = 'ARCHS="x86_64 arm64e arm64" VALID_ARCHS="x86_64 arm64e arm64"'
           text = path.read_text()
