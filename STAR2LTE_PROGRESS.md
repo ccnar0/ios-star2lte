@@ -99,12 +99,47 @@ firmware) is the undo path, also flashed as AP.
   `4485142da7411359f69f88cc8e436a52b50a88df6c9f70b7c179502fa1bc3e75`)
   rebuilt from it. **Build success only; v2 has not run on the phone.**
 
-## Open questions after the probe v1 run
+## On-device probe v2 results (2026-11-06)
 
-- Answered: S-Boot boots a raw Image with this header (`SEANDROIDENFORCE`
-  only, unlocked bootloader); the panel is driven at `0xcc000000`; the
-  countdown and PMU reset work; 16 KiB pages are supported.
-- Still open: EL (EL1 vs EL2), the boot core's MPIDR, CNTFRQ, and what
-  S-Boot actually puts in X0-X3. Probe v2 reports all of these.
-- Whether S-Boot loads a DTB of its own; if not, the port uses the
-  extracted `star2lte.dtb` directly.
+Flashed `star2lte-probe-boot.tar` (v2, packed against OneUI) as Odin AP;
+S-Boot booted it and the report was photographed.
+
+| Field | Value | Meaning |
+| --- | --- | --- |
+| EL | `1` | S-Boot enters at **EL1**; no EL2 drop needed |
+| SCTLR_EL1 | `0x30C5183E` | MMU off (M=0), I- and D-cache on |
+| IMAGE | `0x80150000` | actual load address, not `0x10008000` |
+| X0 | `0x8A000000` | **DTB pointer**; the word there is `D00DFEED` |
+| FDTSZ | `0x4A29B` (303,771 B) | S-Boot's own DTB, about one `0x4A000` DTBH entry |
+| X1 | `0x80000000` | first word there is 0 |
+| X2 | `0x150000` | unknown |
+| X3 | `0x80150000` | kernel base again |
+| CNTFRQ_EL0 | `0` | firmware left it unset; use 26 MHz (`0x18CBA80`) |
+| MIDR | `0x410FD051` | Cortex-A55 r1p1 boot core |
+| MPIDR | `0x80000000` | CPU0 (bit31 RES1, affinity 0) |
+| TGran16 | YES | 16 KiB pages supported; port still uses the 4 KiB base |
+| TRIG | `0x3070` | previous DECON trigger value |
+
+- `FDT BAD` in the v1 run did not reproduce: v2 found a valid FDT at
+  `0x8A000000`. v1's range check would have accepted that address, so the
+  v1 false negative is unexplained; the v1 run may have used the earlier
+  LineageOS-packed image. Treat the DTB handoff as confirmed.
+- `TAGS` read `----`: the image runs at `0x80150000`, so the legacy tag
+  address `0x10000100` is outside the ranges the probe will dereference.
+- The countdown used the 26 MHz fallback and the phone rebooted on time.
+
+Implications for the XNU port:
+
+- The trampoline stays at EL1; no EL2→EL1 transition is required.
+- Use S-Boot's DTB at `0x8A000000` (X0), not only the extracted copy.
+- Hardcode the 26 MHz counter frequency; `CNTFRQ_EL0` is not programmed.
+- The kernel loads at `0x80150000` and must stay below 4 GiB for the
+  39-bit kernel VA setup.
+
+## Open questions for the XNU bring-up
+
+- Whether the 4 KiB base, 39-bit VA and Cortex-A53 codegen carry over to
+  the 9810 unchanged (A55 is ARMv8.2 but backwards compatible).
+- GIC-400 at `0x10101000` with the existing GICv2 driver.
+- UFS controller differences from the S7's exynos-ufs.
+- DECON_F/DSIM differences from herolte.
