@@ -178,3 +178,10 @@ loader assumes a window below the DTB at `0x8A000000` and a log page at
 
 `tools/validate-repo.py` already reports a patch-sequence gap
 (`0129` -> `0200`) inherited from the herolte base; unrelated to this work.
+
+
+## External board-source cross-check (2026-11-06)
+
+The LineageOS 24.0 kernel tree contains the exact `exynos9810-star2lte_eur_open_26.dts` board source. It uses root and reserved-memory cell widths of 2 address cells / 1 size cell, and documents fixed modem, CP log, audio, secure camera, Samsung crash-log, and camera-firmware reservations. It also marks TIMA and RKP regions disabled and has size-only dynamic pools. Importantly, this board DTS has no root DRAM `memory` node: firmware supplies that information. These values are static kernel-DTS cross-checks only; they do not replace the live S-Boot DTB capture and must not be used to choose the XNU RAM window.
+
+Upstream `exynos9810.dtsi` corroborates the A55/Mongoose MPIDR layout, GIC-400, PSCI SMC calls, and 26 MHz timer. Upstream `starlte` and uniLoader sources are sibling-device references, not drop-in star2lte code. See [docs/STAR2LTE_REFERENCE_SOURCES.md](docs/STAR2LTE_REFERENCE_SOURCES.md) for the source links, address table, and limitations.
