@@ -1,70 +1,100 @@
-# ios-star2lte — iOS 16 on the Galaxy S9+ (Exynos 9810)
+# ios-star2lte — Galaxy S9+ (star2lte), Exynos 9810
 
-Status: fresh port. This tree is a snapshot of `wardevsa/ios-a5xelte` (`herolte`,
-Galaxy S7, Exynos 8890); no star2lte/Exynos 9810 board code exists yet. S7
-constants are a starting point, not facts for this phone.
+## Active target and repository layout
 
-## Target, and which references apply
+The active target is the Samsung Galaxy S9+ Exynos variant, SM-G965F/DS
+(star2lte). Snapdragon S9+ (starqltechn/SDM845) is not compatible.
 
-- Target is `star2lte` = SM-G965F/DS, **Exynos 9810**. Confirm the exact model
-  before anything destructive.
-- Do **not** use `syncmodz/ios-s9` (`starqltechn`, SDM845) or the donor
-  ios-sweet Qualcomm drivers: different SoC, storage, display, PMIC and touch.
-- Local reference trees: `C:\Users\ccnar\ios-s7` (herolte base, same Exynos
-  approach) and `C:\Users\ccnar\ios-sweet-s9` (donor).
-- Real star2lte boot/recovery artifacts (LineageOS/TWRP) are in
-  `C:\Users\ccnar\Downloads`; extract the live DTB from them for addresses.
-  Do not commit those files.
+This repository also contains substantial historical/reference work for
+Galaxy A5 2016 (a5xelte), Galaxy S7 (herolte), and other donor targets.
+Do not treat those board-specific addresses, drivers, patches, or boot
+procedures as valid for star2lte without independent verification.
 
-## Safety and flashing
+Active star2lte work:
+- `shim/star2lte/`: S-Boot handoff and FDT memory-map probes.
+- `tools/star2lte-pack-boot.py`: host-side Samsung BOOT image packer.
+- `tools/mkadt_star2lte.py`: experimental ADT generator; not XNU-boot-tested.
+- `.github/workflows/star2lte-probe.yml`: probe build and host parser test.
+- `STAR2LTE_PROGRESS.md`: source facts, build evidence, on-device results.
 
-- Samsung S-Boot, no `fastboot boot`. Trial kernels go to the BOOT partition
-  only, flashed from TWRP. Confirm the by-name path in TWRP (the S7 uses
-  `/dev/block/platform/155a0000.ufs/by-name/BOOT`).
-- Never write EFS, RECOVERY, PARAM or bootloader partitions. Back up BOOT and
-  EFS first. Erasing/installing into USERDATA needs explicit user confirmation.
-- Keep device dumps, serials, Apple IPSWs/root images and extracted firmware
-  out of git.
+## Verified device evidence
+
+The stage-0 v2 probe has run on the physical SM-G965F:
+- S-Boot enters at EL1, with the MMU off and caches on.
+- X0 points to a valid S-Boot FDT at 0x8A000000.
+- The probe image was loaded at 0x80150000.
+- CNTFRQ_EL0 reads zero; the 26 MHz timer value is source-derived fallback.
+- The v2 probe displayed its report and requested a reboot into recovery.
+
+The FDT memory-map image has only been built and host-tested. It has NOT
+been flashed or run on the phone. The live DRAM/reserved-memory map is
+still the immediate blocker.
+
+XNU has not been ported to or booted on star2lte. There is no completed
+STAR2LTE XNU machine configuration, XNU loader, UFS driver, or display
+driver. Do not describe this project as a working iOS port.
+
+## Flashing and recovery safety
+
+The currently tested procedure is a repacked One UI stock BOOT image
+flashed through Odin's AP slot. The older TWRP/LineageOS instructions in
+historical notes are not the current validated procedure.
+
+- Confirm the exact Exynos SM-G965F/DS model before any device test.
+- Preserve the untouched stock AP firmware and original BOOT image.
+- Do not select Odin Re-Partition and do not flash PIT or unrelated
+  partitions.
+- Never write EFS, modem, USERDATA, RECOVERY, PARAM, or bootloader
+  partitions as part of the current probe work.
+- Keep firmware images, DTBs, device dumps, calibration data, generated
+  BOOT images, and Apple IPSWs/root images out of Git.
+- The packer is host-side only; it does not flash a device.
+- Any new device write or change to the boot/recovery sequence requires
+  explicit review. Prefer read-only probes and a known stock recovery path.
+
+See `shim/star2lte/README.md` for the exact current packaging steps and
+`STAR2LTE_PROGRESS.md` for evidence and unresolved assumptions.
 
 ## Build and test
 
-- Kernel: `.github/workflows/xnu.yml` on a macOS runner.
-  `gh workflow run xnu.yml -R <your-fork> -f machine_config=STAR2LTE`,
-  then download the `xnu-kernel-macos-15-intel` artifact; the output is
-  `kernel.development.star2lte`.
-- Add `STAR2LTE` beside `A5XELTE`/`HEROLTE` in **both** workflow checks:
-  the firehose flags (~line 68) and the LSE scan (~line 189). Without the
-  first, `libfirehose_kernel` is built arm64e-only and the build fails.
-- Shim/loader: `shim/star2lte/build.sh` (copy `shim/herolte/`), needs
-  `aarch64-linux-gnu-gcc` or `aarch64-none-elf-gcc`. Neither is installed on
-  this Windows host; use WSL/Linux or CI.
-- `mkbootimg` is not installed and is not the right tool for Samsung images.
-  Pack with `tools/herolte-pack-boot.py` (make a star2lte copy) against a
-  stock star2lte `boot.img`, then flash the result from TWRP.
-- ADT: create `tools/mkadt_star2lte.py`; never reuse `mkadt_herolte.py`
-  addresses or the S7 framebuffer at `0xe2a00000`.
+The supported probe CI workflow is:
 
-## Repo conventions and pitfalls
+```sh
+gh workflow run star2lte-probe.yml -R ccnar0/ios-star2lte
+gh run watch -R ccnar0/ios-star2lte
+gh run download -R ccnar0/ios-star2lte -n star2lte-probe -D out
+```
 
-- `xnu/patches/` is applied in numeric order by CI. Append board work at 0320+;
-  never renumber. `xnu/patches-pending/` is not applied.
-- The base is 4 KiB pages, 39-bit kernel VA, Cortex-A53 codegen, GICv2 and no
-  LSE atomics (inherited from A5XELTE/HEROLTE). Verify the 9810's GIC before
-  relying on GICv2. Changing page size/VA/codegen is kernel-wide work, not a
-  board tweak.
-- Patch files must stay LF. This Windows checkout has `core.autocrlf=true` and
-  no `.gitattributes`, so local `git apply` can fail on CRLF patches; check
-  with `git apply --check` under WSL before spending a CI run.
-- `NOTES.md` and `HEROLTE_PROGRESS.md` are donor/S7 history. Record this port in
-  `STAR2LTE_PROGRESS.md` (create it) and keep source-derived guesses, build
-  success and on-device evidence as separate claims.
-- Commit completed changes and update `STAR2LTE_PROGRESS.md` before stopping.
+It builds both `probe.Image` and `memmap.Image`, runs the synthetic-DTB
+host test, and uploads the two raw arm64 Images. A passing host test does
+not validate the live phone DTB or prove the memory map.
+
+The XNU workflow currently has historical machine configurations and
+must not be assumed to support STAR2LTE. Add and validate a dedicated
+machine configuration and its required compiler/architecture checks
+before attempting a STAR2LTE XNU build.
+
+## Repository conventions
+
+- `xnu/patches/` is applied in numeric order by the XNU workflow. Never
+  renumber existing patches; use the next unused range only after the
+  target-specific patch plan is reviewed.
+- `xnu/patches-pending/` is not applied by the normal build.
+- Keep patch files LF and run `git apply --check` before spending a CI run.
+- Keep source-derived assumptions, successful builds, host tests, and
+  physical-device observations explicitly separated in progress notes.
+- Historical `NOTES.md`, `HEROLTE_PROGRESS.md`, and `A5XELTE_PROGRESS.md`
+  describe other bring-up efforts; do not copy their device-specific
+  conclusions into star2lte without verification.
 
 ## Bring-up order
 
-1. Extract the star2lte DTB; record memory map, GIC, timer, UFS, DECON/DSIM,
-   touch, PMIC, GPIO keys and the S-Boot framebuffer address.
-2. Add the `STAR2LTE` XNU machine config derived from
-   `0200-herolte-board-target.patch`.
-3. Shim probe on the phone (screen text, EL/MPIDR/CNTFRQ/FDT).
-4. XNU to console with the new ADT; then UFS root, display, touch/keys/battery.
+1. Capture the live S-Boot DTB memory and reserved-memory map using
+   `memmap.Image`; record every page and dropped-record count.
+2. Choose a safe XNU RAM window only after checking DRAM, reserved
+   ranges, DTB, initrd, framebuffer, and probe/kernel load locations.
+3. Validate the GIC, timer, CPU topology, and peripheral register ranges
+   against star2lte sources and on-device evidence.
+4. Design and review a dedicated STAR2LTE XNU machine configuration.
+5. Bring up a minimal XNU console before adding UFS, display, touch,
+   power, and other drivers.
