@@ -107,6 +107,8 @@ static int add_reg(struct ctx *c, const char *name, unsigned name_len, char kind
 int fdtmem_scan(uintptr_t fdt, struct fdtmem_rec *rec, unsigned max,
                 struct fdtmem_stat *st)
 {
+    if (!st || (max && !rec))
+        return -1;
     struct ctx c = { rec, max, st };
     st->totalsize = 0;
     st->count = 0;
