@@ -2,6 +2,14 @@ name: star2lte-probe
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - "shim/star2lte/**"
+      - "shim/fdt.c"
+      - "shim/fdt.h"
+      - "tools/mkadt_star2lte.py"
+      - ".github/workflows/star2lte-probe.yml"
   push:
     branches: [main, herolte, codex/star2lte-xnu-preflight-test]
     paths:
