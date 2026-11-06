@@ -41,7 +41,7 @@ Physical test completed and reviewed. The two pages show 20 records total, inclu
 - `0x880000000 + 0x80000000`
 - `0x900000000 + 0x80000000`
 
-Total reported DRAM: 6,063 MiB (~5.92 GiB). The FDT pointer is `0x8A000000`. The initrd start/end text is not legible enough in the photos to record; no safe XNU RAM window has been selected yet. The photos show no visible dropped-record indicator. The diagnostic probe's physical run does not mean XNU is bootable.
+Total reported DRAM: 6,063 MiB (~5.92 GiB). The FDT pointer is `0x8A000000`. The bottom lines are legible in the second photo: `INITRD S = 0x89900000`, `INITRD E = 0x8990C366` (end-exclusive, size `0xC366` / 49,254 bytes). This initrd lies below the FDT at `0x8A000000`; no safe XNU RAM window has been selected yet. The photos show no visible dropped-record indicator. The diagnostic probe's physical run does not mean XNU is bootable.
 
 If repeating the test:
 1. Verify the handset is the Exynos SM-G965F/SM-G965FD variant and the input BOOT matches its firmware.
