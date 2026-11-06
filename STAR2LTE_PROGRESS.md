@@ -2,8 +2,8 @@
 
 Keep three kinds of claims separate: **source-derived**, **build success**,
 and **on-device evidence**. The handoff probe v1/v2 sections below contain
-physical-device observations; the memory-map probe section is still build
-and host-test evidence only.
+physical-device observations; the memory-map probe now also has physical-device evidence from the
+2026-11-06 SM-G965F run.
 
 ## Device facts from the user's LineageOS 23.2 `boot.img` DTB
 
@@ -144,7 +144,7 @@ Implications for the XNU port:
 - UFS controller differences from the S7's exynos-ufs.
 - DECON_F/DSIM differences from herolte.
 
-## Memory-map probe and ADT builder (2026-11-06, build/host-test only)
+## Memory-map probe and ADT builder (2026-11-06, physical test completed)
 
 Three kinds of claims, kept apart:
 
@@ -156,11 +156,29 @@ Three kinds of claims, kept apart:
   run caught a real bug (node names were truncated to 12 characters, so
   `reserved-memory` children were never read); fixed. The synthetic DTB is
   not S-Boot's DTB.
-- **Build success:** current CI run **42226798280** builds `probe.Image`
+- **Build success:** CI run **42226798280** built `probe.Image`
   (11,984 B) and `memmap.Image` (18,416 B) with the Ubuntu AArch64
   cross-toolchain, `-Wall -Wextra -Werror`, no absolute relocations, and
-  valid arm64 Image headers. The synthetic-DTB host test passes. The
-  memory-map image is not yet packed, flashed, or run on the phone.
+  valid arm64 Image headers. The synthetic-DTB host test passed.
+- **Physical-device test (SM-G965F, 2026-11-06):** the user booted the
+  memory-map image using the device-specific Odin AP package and uploaded
+  both display pages to
+  [test-results/memmap-2026-11-06](test-results/memmap-2026-11-06/).
+  The screen reports 20 records total and FDT address `0x8A000000`.
+  Five `M` records were legible:
+  `0x80000000 + 0x3C800000`,
+  `0xC0000000 + 0x20000000`,
+  `0xE1900000 + 0x1E700000`,
+  `0x880000000 + 0x80000000`, and
+  `0x900000000 + 0x80000000`. Their combined size is 6,063 MiB
+  (about 5.92 GiB). These match the five exact-board DRAM ranges already
+  cross-checked against the public star2lte DTS.
+- The display also showed 11 fixed `R` records and four size-only `D`
+  pools. The two photographed pages contain no visible dropped-record
+  indication. The small display labels truncate reservation names; the
+  complete photo text must be treated as the primary record. The
+  `INITRD S/E` values are not sufficiently legible to transcribe safely.
+  No `V` record was visible in the displayed set.
 - **Source-derived:** `tools/mkadt_star2lte.py` builds an ADT from the
   facts in this file (GIC-400 `0x10101000/0x10102000`, A55 MPIDR 0x000-0x003
   as logical CPUs 0-3, Mongoose 0x100-0x103 as 4-7, 26 MHz timebase, UFS
@@ -172,13 +190,20 @@ Three kinds of claims, kept apart:
 
 Parser hardening now bounds node/property strings, validates FDT block offsets and alignment, requires the reservation-map terminator and a balanced structure tree, rejects partial `reg` tuples, ignores disabled nodes, and checks output arguments. The current CI run must pass both host fixtures before the updated image is treated as ready for device testing.
 
-Next on-device step: pack `memmap.Image` like the probe (Odin AP, stock
-`boot.img` undo path), photograph every page, record the DRAM banks and
-reserved ranges here, then pick the XNU RAM window and the loader log page.
+The live memory-map capture is now recorded above. It confirms the
+reported DRAM banks, but does not by itself identify a safe contiguous
+low-memory XNU window: the DTB, initrd, firmware-owned regions, framebuffer,
+and the exact boundaries of all reservations must be accounted for before
+choosing one. The initrd values on the photos were not legible enough to
+transcribe, so that remains an explicit blocker.
+
 Not started: the `STAR2LTE` XNU machine config patch (0320+), the
-`xnu_boot` loader, and the 9810 UFS/DECON drivers. Open: the old herolte
-loader assumes a window below the DTB at `0x8A000000` and a log page at
-`0x8ffff000`; neither is known to be free on this phone.
+`xnu_boot` loader, and the 9810 UFS/DECON drivers. The old herolte loader's
+assumptions (including a log page at `0x8ffff000`) are not approved for
+reuse on this board. Next engineering step: add an isolated STAR2LTE
+machine-config/build target and a non-flashing loader skeleton that emits
+a serial/framebuffer stage marker, initially keeping CPU0 only and avoiding
+unverified memory or peripheral writes.
 
 `tools/validate-repo.py` already reports a patch-sequence gap
 (`0129` -> `0200`) inherited from the herolte base; unrelated to this work.
