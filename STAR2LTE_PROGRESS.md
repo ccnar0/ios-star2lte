@@ -1,7 +1,9 @@
 # STAR2LTE progress (Galaxy S9+, SM-G965F/DS, Exynos 9810)
 
 Keep three kinds of claims separate: **source-derived**, **build success**,
-**on-device evidence**. Nothing below is an on-device result yet.
+and **on-device evidence**. The handoff probe v1/v2 sections below contain
+physical-device observations; the memory-map probe section is still build
+and host-test evidence only.
 
 ## Device facts from the user's LineageOS 23.2 `boot.img` DTB
 
@@ -90,14 +92,12 @@ firmware) is the undo path, also flashed as AP.
 - `FDT BAD` is treated as the v1 range check being too narrow (it rejected
   any pointer below `0x80000000`, while the header load address is
   `0x10008000`), not as proof that S-Boot passes no DTB.
-- Probe v2 (this commit) prints X0-X3 and the word at each, plus a bounded
-  FDT scan. Its on-device report is pending.
-- v2 `probe.Image`: 11,984 bytes, CI run **42134174676** passed; packed as
-  `probe-v2-oneui-boot.img`, 2,738,192 bytes, SHA-256
-  `579deb65829a4206b7307a70a98fba7f7a8ad93601618b5049562e40f59087f2`;
-  `star2lte-probe-boot.tar` (SHA-256
-  `4485142da7411359f69f88cc8e436a52b50a88df6c9f70b7c179502fa1bc3e75`)
-  rebuilt from it. **Build success only; v2 has not run on the phone.**
+- Probe v2 prints X0-X3 and the word at each. Its physical-device report
+  is recorded in the following section.
+- v2 `probe.Image`: 11,984 bytes; CI run **42134174676** passed. The image
+  was packed and run on the physical phone; its measured results are recorded
+  below. The current CI run **42226798280** also rebuilt both images and
+  passed the host FDT parser test.
 
 ## On-device probe v2 results (2026-11-06)
 
@@ -154,10 +154,11 @@ Three kinds of claims, kept apart:
   run caught a real bug (node names were truncated to 12 characters, so
   `reserved-memory` children were never read); fixed. The synthetic DTB is
   not S-Boot's DTB.
-- **Build success:** `sh shim/star2lte/build.sh` builds `probe.Image`
-  (12,032 B) and the new `memmap.Image` (18,448 B) with
-  `gcc-aarch64-linux-gnu` 13.2 on Ubuntu, `-Wall -Wextra -Werror`, no
-  absolute relocations, Image header OK. Not packed, not flashed.
+- **Build success:** current CI run **42226798280** builds `probe.Image`
+  (11,984 B) and `memmap.Image` (18,416 B) with the Ubuntu AArch64
+  cross-toolchain, `-Wall -Wextra -Werror`, no absolute relocations, and
+  valid arm64 Image headers. The synthetic-DTB host test passes. The
+  memory-map image is not yet packed, flashed, or run on the phone.
 - **Source-derived:** `tools/mkadt_star2lte.py` builds an ADT from the
   facts in this file (GIC-400 `0x10101000/0x10102000`, A55 MPIDR 0x000-0x003
   as logical CPUs 0-3, Mongoose 0x100-0x103 as 4-7, 26 MHz timebase, UFS
