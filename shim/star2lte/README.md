@@ -1,12 +1,18 @@
-# star2lte stage-0 probe
+# star2lte stage-0 probes
 
-`probe.Image` is a bare-metal arm64 Image packed into a Samsung S9+ BOOT
-image. It prints the S-Boot handoff on the panel, then reboots into TWRP.
-It does not touch storage, EFS, regulators, the MMU or the bootloader.
+These are diagnostic bare-metal arm64 images for the Samsung Galaxy S9+
+**Exynos 9810** (SM-G965F/DS). They run from the Samsung S-Boot handoff,
+write text to the firmware framebuffer, and request a reboot into recovery.
+They do not write storage, EFS, regulators, the MMU, or the bootloader.
+
+**The current tested path is a repacked One UI stock BOOT image flashed
+through Odin's AP slot.** The older TWRP/LineageOS instructions are not the
+validated procedure for the current S9+ test.
 
 ## Build
 
-CI (recommended, no local toolchain):
+GitHub Actions is the recommended route if you do not have an AArch64
+cross-toolchain installed:
 
 ```sh
 gh workflow run star2lte-probe.yml -R ccnar0/ios-star2lte
@@ -14,72 +20,120 @@ gh run watch -R ccnar0/ios-star2lte
 gh run download -R ccnar0/ios-star2lte -n star2lte-probe -D out
 ```
 
-Local Linux/WSL with `gcc-aarch64-linux-gnu`:
+The artifact contains both `probe.Image` and `memmap.Image`.
+
+To build locally on Linux/WSL with `gcc-aarch64-linux-gnu`:
 
 ```sh
-sh build.sh            # writes out/probe.Image
+sh shim/star2lte/build.sh
 ```
 
-## Pack against the stock BOOT
+This creates `shim/star2lte/out/probe.Image` and
+`shim/star2lte/out/memmap.Image`. The build does not package or flash
+anything.
 
-Use the LineageOS/TWRP `boot.img` that is currently on the phone. Keep it
-and the output off Git.
+## Before flashing
+
+1. Confirm the phone is the **Exynos SM-G965F/DS** variant. Do not use
+   these images on Snapdragon S9+ models.
+2. Keep the untouched stock One UI AP firmware and its original BOOT image
+   available. Verify that you can restore the stock AP with Odin before
+   experimenting.
+3. Keep all stock firmware, extracted images, generated BOOT images and
+   tar files outside the Git repository.
+4. Use the One UI stock `boot.img` extracted from the AP firmware as the
+   packer's input. Do not substitute a LineageOS/TWRP boot image for the
+   procedure recorded in the project progress log.
+
+## Pack a probe for Odin
+
+First inspect the stock image:
 
 ```sh
-python3 ../../tools/star2lte-pack-boot.py info STOCK_BOOT.img
-python3 ../../tools/star2lte-pack-boot.py pack STOCK_BOOT.img \
-    out/probe.Image star2lte-probe-boot.img
+python3 tools/star2lte-pack-boot.py info STOCK_BOOT.img
 ```
 
-## Flash from TWRP (BOOT only)
+Pack either diagnostic image (use a fresh output filename each time):
 
-1. Back up the current boot partition:
-   - TWRP **Backup** -> select **Boot** -> swipe.
-   - or `dd if=/dev/block/by-name/boot of=/sdcard/boot-stock.img`
-     (confirm the real by-name path under `/dev/block/platform/*/by-name/`).
-2. `adb push star2lte-probe-boot.img /sdcard/`
-3. TWRP **Install** -> **Install Image** -> pick the file -> **Boot**.
-4. Reboot to system. The probe draws its report, waits 90 s, then
-   reboots into TWRP.
+```sh
+python3 tools/star2lte-pack-boot.py pack STOCK_BOOT.img \
+  shim/star2lte/out/probe.Image probe-oneui-boot.img \
+  --partition-size 67108864
 
-If the screen stays black, power-cycle with **Power + Vol Down + Bixby**
-(hold ~10 s) and restore `boot-stock.img`. If the text appears but the
-reboot does not happen, hold **Power + Vol Up + Bixby** to enter TWRP.
+# Or, for the memory-map capture:
+python3 tools/star2lte-pack-boot.py pack STOCK_BOOT.img \
+  shim/star2lte/out/memmap.Image memmap-oneui-boot.img \
+  --partition-size 67108864
+```
 
-## What to photograph
+Put the generated image in a tar archive with the member name
+`boot.img` (Odin expects the partition filename, not the generated
+filename):
 
-All lines from `STAR2LTE PROBE 1` down to `TWRP EN ...`:
+```sh
+mkdir -p odin-ap
+cp probe-oneui-boot.img odin-ap/boot.img
+tar -cf star2lte-probe-boot.tar -C odin-ap boot.img
+```
 
-- `EL`, `SCTLR`, `FDT`, `FDT SIZE`
-- `MIDR`, `MPIDR` (boot cluster/core)
-- `MMFR0`, `PFR0`, `ISAR0`, `CNTFRQ`
-- `TRIG` (previous DECON trigger value)
-- `INITRD`, `INITRD END`
-- `16K PAGES: YES/NO`
+For the memory-map image, copy `memmap-oneui-boot.img` instead and use a
+different tar filename.
 
-Those values decide the next step: the `STAR2LTE` XNU machine config,
-the ADT memory layout, and whether the 4 KiB-page XNU is required.
+In Odin, load the generated tar in the **AP** slot. Do not select
+Re-Partition, and do not flash PIT or other partitions. The packer is a
+host-side image tool; it never flashes the device itself.
+
+## Probe v2: handoff report
+
+The v2 probe displays the S-Boot entry state, X0-X3, the DTB address and
+size, CPU identity, timer frequency, and page-size capability. It waits
+180 seconds and then requests recovery.
+
+Photograph the full report. The v2 results already recorded in
+`STAR2LTE_PROGRESS.md` confirm EL1 entry, the DTB at `0x8A000000`,
+kernel load at `0x80150000`, and a zero `CNTFRQ_EL0` value.
 
 ## Memory-map probe (`memmap.Image`)
 
-Next on-device step after probe v2. It walks the FDT S-Boot passes in X0
-(`0x8A000000`) and lists every DRAM bank (`M`), reserved-memory node with a
-base (`R`), size-only reserved pool (`D`) and header memory reservation
-(`V`), 16 rows per page, flipping pages every 20 s for 300 s, then reboots
-to recovery like `probe.Image`. Row format: `kind name base size` (hex).
-`INITRD S/E` rows (20, 21) show `/chosen` initrd if present.
+This is the next on-device step; it has **not yet been flashed or run on
+the phone**. It walks the FDT passed in X0 and lists:
 
-Build: `sh shim/star2lte/build.sh` (also made by the `star2lte-probe` CI job,
-artifact `star2lte-probe`). Pack and flash exactly like `probe.Image`
-(`tools/star2lte-pack-boot.py` against the stock OneUI `boot.img`, Odin AP;
-`star2lte-stock-boot.tar` is the undo path). Photograph every page.
+- `M`: DRAM bank from `/memory*`
+- `R`: fixed `/reserved-memory/*` range
+- `D`: size-only dynamic reserved pool
+- `V`: FDT header memory-reservation entry
 
-The walker (`fdtmem.c`) has a host test:
+It shows 16 records per page, changes page every 20 seconds, and runs for
+300 seconds before requesting recovery. Photograph every page, including
+the page counter and any dropped-record count. The `INITRD S/E` lines
+show `/chosen` initrd bounds when present.
+
+Do not choose an XNU RAM window or persistent log address from the
+mainline device tree alone. Record the live map first; then check that the
+chosen window does not overlap the DTB, initrd, reserved regions, or
+framebuffer.
+
+## Host test for the FDT memory walker
+
+From the repository root on Linux/WSL with `dtc` and GCC:
 
 ```sh
-dtc -I dts -O dtb test_memmap.dts -o /tmp/t.dtb
-gcc -O2 -Wall -Wextra host_fdtmem_test.c fdtmem.c -o /tmp/t && /tmp/t /tmp/t.dtb
+dtc -I dts -O dtb shim/star2lte/test_memmap.dts -o /tmp/star2lte-test.dtb
+gcc -std=c11 -O2 -Wall -Wextra -Werror \
+  shim/star2lte/host_fdtmem_test.c shim/star2lte/fdtmem.c \
+  -o /tmp/star2lte-fdtmem-test
+/tmp/star2lte-fdtmem-test /tmp/star2lte-test.dtb
 ```
 
-Use the result to choose the XNU RAM window and loader/log addresses;
-`tools/mkadt_star2lte.py` requires `--dram-base/--dram-size` for that reason.
+The synthetic DTB tests the parser, not the phone's S-Boot DTB. A passing
+host test is not evidence that the memory map has been captured on-device.
+
+## Recovery and scope
+
+If the phone does not boot after a test, restore the untouched stock AP
+firmware with Odin using the known-good recovery procedure. Do not
+experiment with EFS, modem, USERDATA, PIT, or partition tables as part of
+this stage.
+
+This project is experimental boot-chain/kernel research, not a usable
+iOS port. XNU has not yet been ported to or booted on star2lte.
