@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       stock_boot_path:
-        description: "Repo path to untouched stock BOOT .lz4 (upload it to test-inputs/ first)"
+        description: "Repo path to the stock BOOT .lz4 already committed under test-results/"
         required: true
-        default: "test-inputs/boot.img.lz4"
+        default: "test-results/memmap-2026-11-06/boot.img.lz4"
         type: string
       boot_partition_bytes:
         description: "BOOT partition size in bytes (TWRP report: 57671680)"
@@ -37,7 +37,7 @@ jobs:
           STOCK_BOOT_PATH: ${{ inputs.stock_boot_path }}
         run: |
           test -f "$STOCK_BOOT_PATH" || {
-            echo "::error::Missing $STOCK_BOOT_PATH. Upload your untouched SM-G965F stock boot.img.lz4 to that repository path, then run this workflow again."
+            echo "::error::Missing $STOCK_BOOT_PATH. Check the stock BOOT upload path in main, then run this workflow again."
             exit 1
           }
           mkdir -p package-out
