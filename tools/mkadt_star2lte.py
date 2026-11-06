@@ -20,9 +20,10 @@ FB_BASE, FB_WIDTH, FB_HEIGHT = 0xcc000000, 1440, 2960   # S-Boot scanout
 TIMEBASE = 26000000         # CNTFRQ_EL0 reads 0 under S-Boot: hardcode 26 MHz
 # GIC-400 (DTB /interrupt-controller@10100000)
 GICD, GICC = 0x10101000, 0x10102000
-# UFS (DTB /ufs@286392320): HCI, vendor HCI, UNIPRO, protector, IRQ 242.
-# Sizes are placeholders (one page each): the DTB sizes are not recorded yet.
+# UFS (exact star2lte vendor DTS /ufs@286392320): four reg tuples, IRQ 242.
+# Keep the DTB's actual resource sizes; do not round them up to page size.
 UFS_HCI, UFS_VENDOR, UFS_UNIPRO, UFS_PROT = 0x11120000, 0x11121100, 0x11110000, 0x11130000
+UFS_HCI_SIZE, UFS_VENDOR_SIZE, UFS_UNIPRO_SIZE, UFS_PROT_SIZE = 0x200, 0x200, 0x8000, 0x100
 UFS_IRQ = 242
 # Nominal Exynos 9810 clocks (public spec, not measured): 4x A55, 4x Mongoose M3.
 A55_HZ, M3_HZ = 1794000000, 2704000000
@@ -131,7 +132,8 @@ def build(canvas, dram, scale=3):
                      (mkadt.cstr('sweet-fbcon'), mkadt.cstr('sweet-ufs'))]
     # Absolute addresses for the (not yet ported) Exynos 9810 UFS driver.
     root.children.append(mkadt.node('star2lte-ufs', [
-        ('reg', mkadt.u64(UFS_HCI, 0x1000, UFS_VENDOR, 0x1000, UFS_UNIPRO, 0x1000, UFS_PROT, 0x1000)),
+        ('reg', mkadt.u64(UFS_HCI, UFS_HCI_SIZE, UFS_VENDOR, UFS_VENDOR_SIZE,
+                         UFS_UNIPRO, UFS_UNIPRO_SIZE, UFS_PROT, UFS_PROT_SIZE)),
         ('interrupts', mkadt.u32(UFS_IRQ)),
     ]))
     # pe_serial.c looks this node up by name for the kprintf console.
