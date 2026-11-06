@@ -14,10 +14,19 @@ enum {
     FDTMEM_RSVMAP = 'V'   /* header memory-reservation block               */
 };
 
+enum {
+    FDTMEM_F_NO_MAP = 1U << 0,
+    FDTMEM_F_REUSABLE = 1U << 1
+};
+
 struct fdtmem_rec {
     char name[FDTMEM_NAME];   /* node name without the @unit-address */
     char kind;
+    uint32_t flags;
+    uint32_t alloc_range_count; /* zero means no alloc-ranges property */
     uint64_t base, size;
+    uint64_t alignment;
+    uint64_t alloc_base, alloc_size; /* first alloc-ranges tuple, if present */
 };
 
 struct fdtmem_stat {
