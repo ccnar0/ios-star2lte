@@ -60,7 +60,7 @@ Treat `/proc/iomem` as a Linux resource map, not a canonical hardware register m
 ### Built but NOT physically tested
 `shim/star2lte/out/memmap.Image` is a second bare-metal image that walks the FDT passed in X0 and displays DRAM banks and reserved-memory ranges. It has CI build and synthetic-DTB host-test evidence only. It has **not** yet been packed/flashed/run on the phone.
 
-The next useful device test is this memory-map probe, not an XNU kernel. It is needed to select a safe RAM window for a future XNU loader. Follow `shim/star2lte/README.md`:
+The next useful device test is this memory-map probe, not an XNU kernel. A device-specific Odin AP package has now been generated and validated locally from the user's matching stock BOOT and the CI `memmap.Image`; it has **not** been physically tested yet. Hashes and artifact-validation details are in [`docs/STAR2LTE_MEMMAP_TEST_ARTIFACT.md`](docs/STAR2LTE_MEMMAP_TEST_ARTIFACT.md). The stock-derived BOOT image and Odin TAR are intentionally not committed. The probe is needed to select a safe RAM window for a future XNU loader. Follow `shim/star2lte/README.md`:
 1. Build/download the current `star2lte-probe` artifact containing `memmap.Image`.
 2. Use the exact matching One UI stock BOOT image as input to `tools/star2lte-pack-boot.py`.
 3. Produce a new output image and an Odin tar whose member is named `boot.img`.
