@@ -137,3 +137,15 @@ this stage.
 
 This project is experimental boot-chain/kernel research, not a usable
 iOS port. XNU has not yet been ported to or booted on star2lte.
+
+
+## Host tests and current parser behavior
+
+The CI workflow builds both `probe.Image` and `memmap.Image`, then runs two host DTB fixtures:
+
+- `test_memmap.dts`: generic FDT with two-cell addresses/sizes and malformed-input tests (bad total size, truncated structure, invalid root name, unterminated property-name string table, missing memreserve terminator, and invalid output arguments).
+- `test_star2lte_reserved.dts`: S9+-style one-size-cell layout, all five DRAM banks from the public star2lte mainline DTS, fixed reservations, a disabled region, a nested child and a dynamic size-only pool.
+
+Host tests use AddressSanitizer and UndefinedBehaviorSanitizer. They validate the parser and synthetic fixtures only; they do not validate the live S-Boot DTB. Node/property strings and FDT blocks are bounds-checked, disabled nodes are omitted, partial `reg` tuples are rejected, and record names preserve up to 15 characters.
+
+The public exact-board source lists UFS resource sizes HCI `0x200`, vendor HCI `0x200`, UniPro `0x8000`, and protector `0x100`; `tools/mkadt_star2lte.py` now uses those values instead of one-page placeholders.
