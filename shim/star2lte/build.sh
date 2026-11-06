@@ -36,3 +36,6 @@ PY
 }
 
 image probe probe.S probe.c fbtext.c ../fdt.c
+# Memory-map probe: reuses probe.S, prints DRAM banks + reserved ranges from
+# S-Boot's FDT (X0). Pack and flash it exactly like probe.Image.
+image memmap probe.S memmap.c fdtmem.c fbtext.c
