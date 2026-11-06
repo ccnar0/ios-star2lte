@@ -46,6 +46,7 @@ int main(int argc, char **argv)
     EXPECT(rc == 0);
     EXPECT(st.totalsize == len);
     EXPECT(has(rec, st.count, 'M', "memory", 0x80000000ULL, 0x40000000ULL));
+    EXPECT(has(rec, st.count, 'M', "memory", 0x900000000ULL, 0x80000000ULL));
     EXPECT(has(rec, st.count, 'R', "modem_if", 0xf0000000ULL, 0x09200000ULL));
     EXPECT(has(rec, st.count, 'R', "secure_camera", 0xe1900000ULL, 0x01e00000ULL));
     EXPECT(has(rec, st.count, 'R', "exynos_ss", 0xfda00000ULL, 0x01c08000ULL));
