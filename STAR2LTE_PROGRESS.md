@@ -28,62 +28,77 @@ Extracted from `lineage-23.2-*-star2lte.zip` (not in git):
 Boot image layout from the same `boot.img`: page 2048, kernel at
 `0x10008000`, ramdisk at `0x11000000`, tags at `0x10000100`, arm64
 `text_offset 0x80000`, flags `0xa`, DTBH v2 with one chip-9810 entry
-(dt size `0x4a000`). S-Boot passes the FDT in X0 and the initrd at
-`0x82000000-0x821fffff` (32 MiB).
+(dt size `0x4a000`). S-Boot is *assumed* to pass the FDT in X0 and the
+initrd at `0x82000000-0x821fffff` (32 MiB); the probe v1 run saw
+`FDT BAD`, so the X0 assumption is not yet confirmed on this device.
 
 ## Stage 0: handoff probe
 
 Added `shim/star2lte/` (probe.S, probe.c, fbtext.[ch], image.ld,
 build.sh) and `tools/star2lte-pack-boot.py`.
 
-The probe prints, on the firmware framebuffer:
+v1 prints, on the firmware framebuffer: EL, SCTLR_EL1, FDT pointer,
+loaded address, MIDR, MPIDR, MMFR0, PFR0, ISAR0, CNTFRQ, the previous
+DECON trigger value, initrd start/end and the `TGran16` result, then
+holds 90 s.
 
-- EL, SCTLR_EL1, FDT pointer, FDT magic/size, loaded address
-- MIDR, MPIDR (which core S-Boot booted), MMFR0, PFR0, ISAR0, CNTFRQ
-- previous DECON trigger value, initrd start/end
-- whether 16 KiB pages (`TGran16`) are supported
+v2 keeps those but also dumps all four entry argument registers (X0-X3),
+the 32-bit word each one points at, and the legacy ATAGS word at
+`0x10000100`, then holds 180 s. Pointer reads are limited to RAM ranges
+the DTB lists plus, while running from the low alias, the 32 MiB the
+stock kernel occupied; an unmapped read with the MMU off would abort.
 
-Then it waits 90 s, writes PMU `SYSIP_DAT0 = 0xf` and `SWRESET = 1`
-(Exynos 9810) to reboot into TWRP. It performs no storage, EFS,
-regulator, MMU or bootloader writes.
+Both versions finish by writing PMU `SYSIP_DAT0 = 0xf` and `SWRESET = 1`
+(Exynos 9810) to reboot into recovery. No storage, EFS, regulator, MMU or
+bootloader writes.
 
 CI: `.github/workflows/star2lte-probe.yml` builds `probe.Image` on
 Ubuntu with `gcc-aarch64-linux-gnu` and uploads the `star2lte-probe`
-artifact. Pack locally with:
+artifact. Pack locally against the stock OneUI `boot.img` and flash
+through Odin's AP slot (no TWRP on the phone):
 
 ```sh
-python3 tools/star2lte-pack-boot.py pack STOCK_BOOT.img \
-    shim/star2lte/out/probe.Image star2lte-probe-boot.img
+python tools/star2lte-pack-boot.py pack research/star2lte/oneui-boot.img \
+    shim/star2lte/out/probe.Image research/star2lte/probe-oneui-boot.img \
+    --partition-size 67108864
 ```
 
-Then back up BOOT and flash only BOOT from TWRP.
+Put `probe-oneui-boot.img` in a tar as `boot.img` and flash it as AP.
+`star2lte-stock-boot.tar` (the untouched `boot.img.lz4` from the same AP
+firmware) is the undo path, also flashed as AP.
 
-## Build status (2026-11-06)
+## Build status and on-device evidence (2026-11-06)
 
 - CI `star2lte-probe` runs **42122702768**, **42123037232** and
   **42123564845** passed on `ubuntu-latest`. Artifact `star2lte-probe` =
-  `probe.Image`.
-- The user reports a hardware fault in the **top half** of the panel, so
-  run 42123564845 moved the report to `TOP=1560`; all 20 lines end at
-  y=2682, inside the working bottom half.
-- `probe.Image`: 10,960 bytes; arm64 header `text_offset=0x80000`,
-  `flags=0xa`; `code0=0x14000010` (branch to entry at +0x40).
-- Packed against the user's LineageOS 23.2 `boot.img`:
-  `star2lte-probe-boot.img`, 1,892,368 bytes, SHA-256
-  `d06f803deec528e6ab9f1a7256c61c1a2e6af9f4842044fbe608104ffa523d60`.
-  Kernel 10,960 B at `0x10008000`, stock ramdisk 1,572,690 B at
-  `0x11000000`, DTBH v2 chip 9810 (`platform 0x50a6`) preserved,
-  `SEANDROIDENFORCE` marker present. (Supersedes the earlier
-  0ad8895c... image, which drew in the damaged half.)
-- **Build success only. Nothing has been flashed or run on the phone.**
+  `probe.Image` (v1, 10,960 bytes).
+- The panel has a hardware fault in the **top half**, so run 42123564845
+  moved the report to `TOP=1560`; 20 lines end by y=2682.
+- v1 packed against the OneUI 11 stock `boot.img` (`G965FXXUHFVG4`):
+  `probe-oneui-boot.img`, 2,738,192 bytes, SHA-256
+  `0d4dd2c8621f1092524960248ee050c16615c9e0f46d467636812e0b8886e86b`;
+  kernel 10,960 B, stock ramdisk 901,990 B, DTBH v2 with six chip-9810
+  entries, `SEANDROIDENFORCE` tail. Packaged as `star2lte-probe-boot.tar`
+  for Odin AP.
+- **On-device (probe v1):** Odin accepted the tar in AP and S-Boot booted
+  the raw Image, so with the bootloader unlocked the `SEANDROIDENFORCE`
+  marker is enough; no extra signature check was seen.
+- The report appeared in the working bottom half and the countdown ran to
+  zero, after which the phone rebooted by itself (PMU reset works).
+- Reported values: `FDT BAD`, `INITRD ?`, `16K PAGES: YES`. EL was not
+  recorded; X0-X3 were not printed by v1.
+- `FDT BAD` is treated as the v1 range check being too narrow (it rejected
+  any pointer below `0x80000000`, while the header load address is
+  `0x10008000`), not as proof that S-Boot passes no DTB.
+- Probe v2 (this commit) prints X0-X3 and the word at each, plus a bounded
+  FDT scan. Its on-device report is pending.
 
-## Open questions for the first on-device run
+## Open questions after the probe v1 run
 
-- Does S-Boot boot a raw Image packed with this header, or does it
-  enforce a signature beyond `SEANDROIDENFORCE`?
-- Actual MPIDR of the boot core and the FDT address S-Boot passes.
-- Whether `0xcc000000` is live on star2lte (confirmed for starlte).
-- CNTFRQ (expect 26 MHz) and whether the countdown reaches TWRP.
-- Real BOOT partition size (`blockdev --getsize64`).
-- `/dev/block/by-name/BOOT` path in TWRP (S7 used
-  `/dev/block/platform/155a0000.ufs/by-name/BOOT`; the S9 may differ).
+- Answered: S-Boot boots a raw Image with this header (`SEANDROIDENFORCE`
+  only, unlocked bootloader); the panel is driven at `0xcc000000`; the
+  countdown and PMU reset work; 16 KiB pages are supported.
+- Still open: EL (EL1 vs EL2), the boot core's MPIDR, CNTFRQ, and what
+  S-Boot actually puts in X0-X3. Probe v2 reports all of these.
+- Whether S-Boot loads a DTB of its own; if not, the port uses the
+  extracted `star2lte.dtb` directly.
