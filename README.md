@@ -21,7 +21,7 @@ This repository contains earlier HEROLTE (Galaxy S7) and A5XELTE work as referen
 | XNU loader, UFS and DECON/DSIM drivers | Not started |
 | iOS userland | Not running on this device |
 
-The complete evidence, probe measurements, source-derived hardware facts, and unresolved questions are tracked in [STAR2LTE_PROGRESS.md](STAR2LTE_PROGRESS.md). Build success, source-derived assumptions, and on-device results are intentionally kept separate.
+The complete evidence, probe measurements, source-derived hardware facts, and unresolved questions are tracked in [STAR2LTE_PROGRESS.md](STAR2LTE_PROGRESS.md). External Exynos 9810 and exact star2lte kernel-DTS references are collected in [docs/STAR2LTE_REFERENCE_SOURCES.md](docs/STAR2LTE_REFERENCE_SOURCES.md). Build success, source-derived assumptions, and on-device results are intentionally kept separate.
 
 ## Device facts
 
