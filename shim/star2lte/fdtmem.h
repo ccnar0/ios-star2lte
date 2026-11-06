@@ -5,7 +5,7 @@
 /* Read-only walker that lists the DRAM banks and every reserved range in
  * the FDT S-Boot hands over (X0 = 0x8A000000 on star2lte). Needs only
  * aligned 32-bit and byte reads, so it is safe with the MMU off. */
-#define FDTMEM_NAME 13
+#define FDTMEM_NAME 16
 
 enum {
     FDTMEM_RAM = 'M',     /* /memory*@... reg                              */
