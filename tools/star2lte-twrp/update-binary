@@ -1,0 +1,93 @@
+#!/sbin/sh
+# Read-only TWRP diagnostic installer for Samsung Galaxy S9+ Exynos (star2lte).
+# It deliberately does not mount, format, flash, or modify any device partition.
+
+OUTFD="$2"
+REPORT="/tmp/star2lte-test-report.txt"
+
+ui() {
+    if [ -n "$OUTFD" ]; then
+        echo "ui_print $*" >&"$OUTFD"
+        echo "ui_print" >&"$OUTFD"
+    fi
+}
+section() { printf '\n\n===== %s =====\n' "$1" >> "$REPORT"; }
+capture_file() {
+    section "$1 ($2)"
+    if [ -r "$2" ]; then cat "$2" >> "$REPORT" 2>&1; else echo "Unavailable" >> "$REPORT"; fi
+}
+capture_prop() {
+    section "Android properties"
+    if command -v getprop >/dev/null 2>&1; then
+        getprop 2>&1 | grep -E '^\[(ro\.product|ro\.build|ro\.boot|ro\.hardware|ro\.board|ro\.soc|ro\.twrp)' >> "$REPORT" || true
+    else echo "getprop unavailable in this recovery" >> "$REPORT"; fi
+}
+
+ui "STAR2LTE diagnostic package"
+ui "Read-only test; no partitions will be flashed or modified."
+ui "Collecting recovery and hardware information..."
+{
+    echo "STAR2LTE TWRP DIAGNOSTIC REPORT"
+    echo "Generated: $(date 2>/dev/null || echo unknown)"
+    echo "Package: star2lte-twrp-diagnostic"
+    echo "Mode: READ-ONLY"
+} > "$REPORT"
+
+capture_prop
+capture_file "Kernel and architecture" /proc/version
+capture_file "Kernel command line" /proc/cmdline
+capture_file "CPU information" /proc/cpuinfo
+capture_file "Memory information" /proc/meminfo
+capture_file "I/O memory map" /proc/iomem
+capture_file "Mount table" /proc/mounts
+capture_file "Partitions" /proc/partitions
+capture_file "Device-tree model" /proc/device-tree/model
+capture_file "Device-tree compatible" /proc/device-tree/compatible
+
+section "Recovery identity"
+for p in /tmp/recovery.log /etc/recovery.fstab /etc/twrp.fstab; do
+    if [ -r "$p" ]; then
+        echo "--- $p ---" >> "$REPORT"
+        tail -n 160 "$p" >> "$REPORT" 2>&1
+    fi
+done
+
+section "Block-device names (listing only)"
+for p in /dev/block/by-name /dev/block/platform; do
+    if [ -d "$p" ]; then
+        echo "--- $p ---" >> "$REPORT"
+        ls -la "$p" >> "$REPORT" 2>&1
+    fi
+done
+
+section "Device and recovery properties"
+for p in /sys/devices/soc0/machine /sys/devices/soc0/family /sys/devices/soc0/soc_id /sys/class/power_supply/battery/capacity /sys/class/power_supply/battery/status; do
+    if [ -r "$p" ]; then
+        printf '%s: ' "$p" >> "$REPORT"
+        cat "$p" >> "$REPORT" 2>&1
+    fi
+done
+
+section "Safety summary"
+cat >> "$REPORT" <<'EOF'
+This package only read system properties, procfs, sysfs and directory listings.
+It did not mount, format, erase, flash, or write any block device.
+This report is diagnostic evidence, not proof that XNU/iOS boots on this device.
+Target hardware: Samsung Galaxy S9+ Exynos SM-G965F/FD (star2lte).
+Snapdragon variants are not supported.
+EOF
+
+DEST=""
+if [ -d /sdcard ] && [ -w /sdcard ]; then
+    DEST="/sdcard/star2lte-test-report.txt"
+elif [ -d /external_sd ] && [ -w /external_sd ]; then
+    DEST="/external_sd/star2lte-test-report.txt"
+fi
+if [ -n "$DEST" ] && cp "$REPORT" "$DEST" 2>/dev/null; then
+    ui "Report saved to $DEST"
+else
+    ui "Shared storage is not writable; report remains at /tmp/star2lte-test-report.txt"
+fi
+ui "Done. This ZIP did not flash or change any partition."
+ui "Please send star2lte-test-report.txt back for analysis."
+exit 0
