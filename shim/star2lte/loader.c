@@ -19,8 +19,13 @@ static uint64_t read_counter(void) {
     uint64_t v; __asm__ volatile("isb; mrs %0, cntpct_el0" : "=r"(v)); return v;
 }
 static uint32_t be32(uintptr_t p) { return __builtin_bswap32(*(volatile const uint32_t *)p); }
-static int range_end(uint64_t b,uint64_t s,uint64_t *e) {
-    if (!s || b > UINT64_MAX-s) return 0; *e=b+s; return 1;
+static int range_end(uint64_t b, uint64_t s, uint64_t *e)
+{
+    if (!s || b > UINT64_MAX - s)
+        return 0;
+
+    *e = b + s;
+    return 1;
 }
 static int inside_ram(uint64_t b,uint64_t s) {
     uint64_t e; if (!range_end(b,s,&e)) return 0;
