@@ -88,3 +88,31 @@ describes a DTS/FDT-to-ADT conversion workflow and stresses matching
 properties and node names to the actual XNU drivers. Our experimental
 `mkadt_star2lte.py` still needs a dedicated STAR2LTE XNU machine
 configuration and driver match validation.
+
+
+## Existing XNU port on the Exynos 9810 sibling
+
+A public HakiOS device repository documents iOS 16.5 running on XNU on the Galaxy S9 `starlte` (SM-G960F), which shares the Exynos 9810 but is not the S9+ board. Its boot chain is S-Boot -> BootShim -> Project Silicium UEFI -> Carbon Hypervisor at EL2 (PSCI) -> `xnuloader` -> XNU. The device README documents the S-Boot parked-core MPIDR quirk and the Exynos cluster-1 PMU preparation needed before Mongoose M3 CPU_ON. It is a valuable architecture and bring-up reference, not a drop-in S9+ port. The README also says the S9+ and Note9 had not yet been tested with its extra-RAM path.
+
+- [HakiOS S9 device repository](https://github.com/lky005/hakios-starlte) (fork of the Scion-Project device repository; BSD/MIT device components and prebuilt UEFI have their own notices)
+- [HakiOS porting record](https://github.com/lky005/hakios-starlte/blob/main/porting.toml)
+- [HakiOS Exynos 9810 ecosystem survey](https://github.com/lky005/hakios-starlte/blob/main/docs/9810-ecosystem.md)
+- [HakiOS S9 memory-map implementation](https://github.com/lky005/hakios-starlte/blob/main/uefi/files/Platforms/Samsung/starltePkg/Library/MemoryMapLib/MemoryMapLib.c)
+
+The common HakiOS kernel repository is referenced by the device README as a separate project. Its XNU code is APSL 2.0; do not copy code unless the exact source and licence are checked. The public device repository is enough to establish the boot architecture and point to the relevant kernel features, but not to transplant the full kernel implementation here.
+
+## Exact S9+ mainline Linux bring-up
+
+SheroAbi's public Linux 7.1 project is for the exact Galaxy S9+ `star2lte` / SM-G965F, not merely the S9 sibling:
+
+- [S9+ mainline Linux repository](https://github.com/SheroAbi/galaxy-s9plus-mainline-linux)
+- [Exact S9+ DTS](https://github.com/SheroAbi/galaxy-s9plus-mainline-linux/blob/main/src/mainline-dts/exynos9810-star2lte.dts)
+- [Hardware map](https://github.com/SheroAbi/galaxy-s9plus-mainline-linux/blob/main/docs/01-hardware.md)
+- [DECON driver](https://github.com/SheroAbi/galaxy-s9plus-mainline-linux/blob/main/src/gpu/drm/s9p/s9p-decon.c)
+- [Exynos 9810 UFS driver](https://github.com/SheroAbi/galaxy-s9plus-mainline-linux/blob/main/src/ufs/ufs-exynos9810.c)
+- [CPU frequency driver](https://github.com/SheroAbi/galaxy-s9plus-mainline-linux/blob/main/src/cpufreq/s9p-cpufreq.c)
+- [Performance notes](https://github.com/SheroAbi/galaxy-s9plus-mainline-linux/blob/main/docs/05-performance.md)
+
+Its DTS reports 6 GiB RAM as low banks `0x80000000+0x3c800000`, `0xc0000000+0x20000000`, `0xe1900000+0x1e700000` and high banks `0x880000000+0x80000000`, `0x900000000+0x80000000`. The source comments say these are addresses the device bootloader reports through `update_memory_node()`. It also carries fixed S-Boot reservations and notes that display scanout must remain below 4 GiB because DECON uses 32-bit addresses. These are Linux/DT cross-checks; XNU needs its own memory-window and DMA design.
+
+The Linux source is GPL-2.0; use it for hardware facts and implementation study, not as code to paste into an APSL XNU tree. The DTS itself is dual-licensed GPL-2.0 OR BSD-3-Clause, as its SPDX header states.
