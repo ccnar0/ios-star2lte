@@ -162,7 +162,6 @@ index 0000000..0000000 100644
  export ARCH_STRING_FOR_CURRENT_MACHINE_CONFIG := arm64e
  endif
  endif
-
 @@ -343,7 +345,7 @@ endif
  # Exynos7580 uses 4 KiB pages: TTBR1 has a 39-bit range. The macOS
  # ARM_LARGE_MEMORY link address at -2 TiB is outside that range. Keep this
