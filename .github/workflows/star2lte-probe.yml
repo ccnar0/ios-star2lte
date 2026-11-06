@@ -35,6 +35,12 @@ jobs:
             -o shim/star2lte/out/host_fdtmem_test
           shim/star2lte/out/host_fdtmem_test shim/star2lte/out/test_memmap.dtb
 
+          dtc -I dts -O dtb shim/star2lte/test_star2lte_reserved.dts -o shim/star2lte/out/test_star2lte_reserved.dtb
+          gcc -std=c11 -O2 -Wall -Wextra -Werror \\
+            shim/star2lte/host_fdtmem_star2lte_test.c shim/star2lte/fdtmem.c \\
+            -o shim/star2lte/out/host_fdtmem_star2lte_test
+          shim/star2lte/out/host_fdtmem_star2lte_test shim/star2lte/out/test_star2lte_reserved.dtb
+
       - name: Inspect generated images
         run: |
           ls -l shim/star2lte/out
