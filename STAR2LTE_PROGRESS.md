@@ -186,6 +186,17 @@ loader assumes a window below the DTB at `0x8A000000` and a log page at
 
 ## External board-source cross-check (2026-11-06)
 
-The LineageOS 24.0 kernel tree contains the exact `exynos9810-star2lte_eur_open_26.dts` board source. It uses root and reserved-memory cell widths of 2 address cells / 1 size cell, and documents fixed modem, CP log, audio, secure camera, Samsung crash-log, and camera-firmware reservations. It also marks TIMA and RKP regions disabled and has size-only dynamic pools. Importantly, this board DTS has no root DRAM `memory` node: firmware supplies that information. These values are static kernel-DTS cross-checks only; they do not replace the live S-Boot DTB capture and must not be used to choose the XNU RAM window.
+The LineageOS 24.0 kernel tree contains the exact `exynos9810-star2lte_eur_open_26.dts` board source. It uses root and reserved-memory cell widths of 2 address cells / 1 size cell, and documents fixed modem, CP log, audio, secure camera, Samsung crash-log, and camera-firmware reservations. It also marks TIMA and RKP regions disabled and has size-only dynamic pools. Importantly, this board DTS has no root DRAM `memory` node: firmware supplies that information. These values are static kernel-DTS cross-checks only; they do not replace the live S-Boot DTB capture and must not be used to choose the XNU RAM window. The S9+ mainline DTS also reports a second 2 GiB high bank at `0x900000000`; the older progress RAM list omitted it. The host fixtures now cover both high banks, but the live phone capture must confirm the handoff's actual bank list.
 
 Upstream `exynos9810.dtsi` corroborates the A55/Mongoose MPIDR layout, GIC-400, PSCI SMC calls, and 26 MHz timer. Upstream `starlte` and uniLoader sources are sibling-device references, not drop-in star2lte code. See [docs/STAR2LTE_REFERENCE_SOURCES.md](docs/STAR2LTE_REFERENCE_SOURCES.md) for the source links, address table, and limitations.
+
+
+## XNU port reference discovered: HakiOS on the S9 sibling (2026-11-06)
+
+A public HakiOS device repository for Galaxy S9 `starlte` documents iOS 16.5 running on XNU on the Exynos 9810. It is a sibling-board reference, not a ready-made `star2lte` port. Its architecture is S-Boot -> BootShim -> Silicium UEFI -> Carbon Hypervisor (EL2/PSCI) -> `xnuloader` -> XNU. It reports that S-Boot's PSCI handling is insufficient for M3 startup without the six Exynos cluster-1 PMU defaults; it also documents the parked A55 core-1 MPIDR quirk. This is a major research lead for our later CPU/loader design, but those writes are not to be copied into our current probe.
+
+The HakiOS device README says its `starlte` configuration reached all eight cores after its loader/kernel changes. It explicitly says the S9+ and Note9 had not yet been seen using its extra-RAM path; therefore treat its XNU port as proof of the shared SoC approach, not proof that its board configuration boots on our S9+.
+
+Separately, SheroAbi's mainline Linux 7.1 project targets the exact `star2lte` / SM-G965F and documents a 6 GiB memory map with two high 2 GiB banks: `0x880000000-0x8FFFFFFFF` and `0x900000000-0x97FFFFFFF`. It explicitly derives the addresses from the S9+'s own bootloader's `update_memory_node()` data. The second bank was missing from our earlier static RAM list; the parser and synthetic tests now include it. The live S-Boot DTB capture remains the authority before selecting an XNU window.
+
+See [docs/STAR2LTE_REFERENCE_SOURCES.md](docs/STAR2LTE_REFERENCE_SOURCES.md) for repositories, source licences, and the distinction between shared-SoC and exact-board evidence.
