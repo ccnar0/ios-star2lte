@@ -1,0 +1,59 @@
+name: star2lte-loader-audit
+on:
+  workflow_dispatch:
+    inputs:
+      stock_boot_path:
+        description: "Stock BOOT .lz4 path committed under test-results/"
+        required: true
+        default: "test-results/memmap-2026-11-06/boot.img.lz4"
+        type: string
+      boot_partition_bytes:
+        description: "BOOT partition size in bytes"
+        required: true
+        default: "57671680"
+        type: string
+permissions:
+  contents: read
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu device-tree-compiler lz4
+      - name: Build STAR2LTE diagnostics
+        run: sh shim/star2lte/build.sh
+      - name: Verify stock BOOT
+        env:
+          STOCK_BOOT_PATH: ${{ inputs.stock_boot_path }}
+        run: |
+          test -f "$STOCK_BOOT_PATH"
+          mkdir -p package-out
+          lz4 -d -f "$STOCK_BOOT_PATH" package-out/stock-boot.img
+          test "$(dd if=package-out/stock-boot.img bs=1 count=8 status=none)" = "ANDROID!"
+      - name: Pack read-only loader audit and Odin AP TAR
+        env:
+          PARTITION_BYTES: ${{ inputs.boot_partition_bytes }}
+        run: |
+          case "$PARTITION_BYTES" in
+            ''|*[!0-9]*) echo "::error::BOOT partition size must be an integer"; exit 1 ;;
+          esac
+          python3 tools/star2lte-pack-boot.py pack package-out/stock-boot.img shim/star2lte/out/loader-audit.Image package-out/boot.img --chip 9810 --partition-size "$PARTITION_BYTES"
+          tar -C package-out -cf package-out/star2lte-loader-audit-odin.tar boot.img
+          test "$(tar -tf package-out/star2lte-loader-audit-odin.tar)" = "boot.img"
+          sha256sum package-out/boot.img package-out/star2lte-loader-audit-odin.tar > package-out/SHA256SUMS.txt
+          printf '%s\n' "READ-ONLY AUDIT ONLY. No RAM allocation, no boot_args, no XNU. Odin AP only; Re-Partition OFF." > package-out/FLASH-WARNING.txt
+          cat package-out/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: star2lte-loader-audit-odin
+          path: |
+            package-out/star2lte-loader-audit-odin.tar
+            package-out/boot.img
+            package-out/SHA256SUMS.txt
+            package-out/FLASH-WARNING.txt
+          if-no-files-found: error
+          retention-days: 30
