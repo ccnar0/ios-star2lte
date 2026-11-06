@@ -106,6 +106,7 @@ int main(int argc, char **argv)
     EXPECT(st.totalsize == len);
     EXPECT(has(rec, st.count, 'M', "memory", 0x80000000ULL, 0x3c800000ULL));
     EXPECT(has(rec, st.count, 'M', "memory", 0x880000000ULL, 0x80000000ULL));
+    EXPECT(has(rec, st.count, 'M', "memory", 0x900000000ULL, 0x80000000ULL));
     EXPECT(has(rec, st.count, 'M', "memory", 0xe1900000ULL, 0x1e700000ULL));
     EXPECT(has(rec, st.count, 'R', "ecdump", 0x8e000000ULL, 0x1000000ULL));
     EXPECT(has(rec, st.count, 'R', "tima", 0xb1000000ULL, 0x500000ULL));
