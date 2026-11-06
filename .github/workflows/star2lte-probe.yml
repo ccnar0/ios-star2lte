@@ -3,7 +3,7 @@ name: star2lte-probe
 on:
   workflow_dispatch:
   push:
-    branches: [main, herolte]
+    branches: [main, herolte, codex/star2lte-xnu-preflight-test]
     paths:
       - "shim/star2lte/**"
       - "shim/fdt.c"
@@ -17,45 +17,33 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-
       - name: Install AArch64 toolchain and host-test dependency
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu \
-            device-tree-compiler
-
+          sudo apt-get install -y --no-install-recommends gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu device-tree-compiler
       - name: Check STAR2LTE ADT generator syntax
         run: python3 -m py_compile tools/mkadt_star2lte.py
-
-      - name: Build stage-0 probe and memory-map image
+      - name: Build stage-0, memory-map and XNU preflight images
         run: sh shim/star2lte/build.sh
-
       - name: Test FDT memory-map parser on host
         run: |
           dtc -I dts -O dtb shim/star2lte/test_memmap.dts -o shim/star2lte/out/test_memmap.dtb
-          gcc -std=c11 -O2 -Wall -Wextra -Werror -fsanitize=address,undefined -fno-omit-frame-pointer \
-            shim/star2lte/host_fdtmem_test.c shim/star2lte/fdtmem.c \
-            -o shim/star2lte/out/host_fdtmem_test
+          gcc -std=c11 -O2 -Wall -Wextra -Werror -fsanitize=address,undefined -fno-omit-frame-pointer shim/star2lte/host_fdtmem_test.c shim/star2lte/fdtmem.c -o shim/star2lte/out/host_fdtmem_test
           shim/star2lte/out/host_fdtmem_test shim/star2lte/out/test_memmap.dtb
-
           dtc -I dts -O dtb shim/star2lte/test_star2lte_reserved.dts -o shim/star2lte/out/test_star2lte_reserved.dtb
-          gcc -std=c11 -O2 -Wall -Wextra -Werror -fsanitize=address,undefined -fno-omit-frame-pointer \
-            shim/star2lte/host_fdtmem_star2lte_test.c shim/star2lte/fdtmem.c \
-            -o shim/star2lte/out/host_fdtmem_star2lte_test
+          gcc -std=c11 -O2 -Wall -Wextra -Werror -fsanitize=address,undefined -fno-omit-frame-pointer shim/star2lte/host_fdtmem_star2lte_test.c shim/star2lte/fdtmem.c -o shim/star2lte/out/host_fdtmem_star2lte_test
           shim/star2lte/out/host_fdtmem_star2lte_test shim/star2lte/out/test_star2lte_reserved.dtb
-
       - name: Inspect generated images
         run: |
           ls -l shim/star2lte/out
-          file shim/star2lte/out/probe.Image shim/star2lte/out/memmap.Image
-          od -An -tx1 -N64 shim/star2lte/out/probe.Image
-
+          file shim/star2lte/out/probe.Image shim/star2lte/out/memmap.Image shim/star2lte/out/preflight.Image
+          od -An -tx1 -N64 shim/star2lte/out/preflight.Image
       - uses: actions/upload-artifact@v4
         with:
           name: star2lte-probe
           path: |
             shim/star2lte/out/probe.Image
             shim/star2lte/out/memmap.Image
+            shim/star2lte/out/preflight.Image
           if-no-files-found: error
           retention-days: 30
