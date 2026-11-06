@@ -80,8 +80,13 @@ static void add(struct ctx *c, const char *name, unsigned name_len, char kind,
     struct fdtmem_rec *r = &c->rec[c->st->count++];
     copy_name(r->name, name, name_len, FDTMEM_NAME);
     r->kind = kind;
+    r->flags = 0;
+    r->alloc_range_count = 0;
     r->base = base;
     r->size = size;
+    r->alignment = 0;
+    r->alloc_base = 0;
+    r->alloc_size = 0;
 }
 
 static uint64_t cells(uintptr_t a, uint32_t n)
