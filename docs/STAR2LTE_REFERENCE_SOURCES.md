@@ -116,3 +116,21 @@ SheroAbi's public Linux 7.1 project is for the exact Galaxy S9+ `star2lte` / SM-
 Its DTS reports 6 GiB RAM as low banks `0x80000000+0x3c800000`, `0xc0000000+0x20000000`, `0xe1900000+0x1e700000` and high banks `0x880000000+0x80000000`, `0x900000000+0x80000000`. The source comments say these are addresses the device bootloader reports through `update_memory_node()`. It also carries fixed S-Boot reservations and notes that display scanout must remain below 4 GiB because DECON uses 32-bit addresses. These are Linux/DT cross-checks; XNU needs its own memory-window and DMA design.
 
 The Linux source is GPL-2.0; use it for hardware facts and implementation study, not as code to paste into an APSL XNU tree. The DTS itself is dual-licensed GPL-2.0 OR BSD-3-Clause, as its SPDX header states.
+
+
+## Exact S9+ Windows-on-ARM reference (permissive source)
+
+[ntdevlabs/exynos9810-woa](https://github.com/ntdevlabs/exynos9810-woa) targets the exact SM-G965F / star2lte and contains a complete `Star2LtePkg` platform description:
+
+- [ACPI MADT](https://github.com/ntdevlabs/exynos9810-woa/blob/main/firmware/Platform/Star2LtePkg/AcpiTables/Madt.aslc): GICv2 GICD/GICC/GICH/GICV windows and all eight MPIDRs.
+- [ACPI PPTT](https://github.com/ntdevlabs/exynos9810-woa/blob/main/firmware/Platform/Star2LtePkg/AcpiTables/Pptt.aslc): package, A55 cluster and Mongoose-M3 cluster topology.
+- [ACPI GTDT](https://github.com/ntdevlabs/exynos9810-woa/blob/main/firmware/Platform/Star2LtePkg/AcpiTables/Gtdt.aslc): timer PPIs and a documented workaround for `CNTFRQ_EL0 == 0` using a synthetic counter frame and the Samsung MCT.
+- [UEFI memory map](https://github.com/ntdevlabs/exynos9810-woa/blob/main/firmware/Platform/Star2LtePkg/Library/PlatformMemoryMapLib/PlatformMemoryMapLib.c): DRAM, framebuffer, reservations and MMIO map.
+- [UFS driver](https://github.com/ntdevlabs/exynos9810-woa/tree/main/drivers/Exynos9810Ufs): exact-board UFSHCI implementation.
+- [HSI2C driver](https://github.com/ntdevlabs/exynos9810-woa/tree/main/drivers/Exynos9810Hsi2c): exact-board USI03/HSI2C controller implementation.
+
+The repository root is BSD-2-Clause-Patent. The HSI2C folder explicitly marks its hardware engine as BSD-2-Clause-Patent but some Microsoft WDF/SpbCx sample-derived scaffolding as MS-PL; retain those notices if adapting any part. These are Windows driver sources, not XNU drivers, so the Storport/KMDF APIs cannot be pasted into XNU. They are nevertheless the most promising permissively licensed source for register sequencing and controller behavior. Compare the UFS calibration against the S9+ vendor DTS and the current Linux implementation before writing an XNU driver.
+
+## Porting implications
+
+The S9 HakiOS port shows that the Exynos 9810 can run XNU/iOS with a dedicated UEFI + EL2/PSCI + loader stack. The exact S9+ Linux and Windows-on-ARM projects provide board-specific DTS/ACPI, RAM banks, UFS and peripheral resources. The practical path is therefore not to transplant a whole Android ROM: reuse the exact S9+ hardware descriptions, use permissively licensed UEFI/Windows code where appropriate, use GPL Linux code only as a factual reference unless a compatible licensing decision is made, and write/validate the XNU-specific machine and drivers separately.
