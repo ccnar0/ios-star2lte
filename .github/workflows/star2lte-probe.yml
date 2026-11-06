@@ -35,6 +35,8 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: star2lte-probe
-          path: shim/star2lte/out/probe.Image
+          path: |
+            shim/star2lte/out/probe.Image
+            shim/star2lte/out/memmap.Image
           if-no-files-found: error
           retention-days: 30

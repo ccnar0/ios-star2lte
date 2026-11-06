@@ -143,3 +143,37 @@ Implications for the XNU port:
 - GIC-400 at `0x10101000` with the existing GICv2 driver.
 - UFS controller differences from the S7's exynos-ufs.
 - DECON_F/DSIM differences from herolte.
+
+## Memory-map probe and ADT builder (2026-11-06, build/host-test only)
+
+Three kinds of claims, kept apart:
+
+- **Host-tested:** `shim/star2lte/fdtmem.c` (FDT walker for `/memory*`,
+  `/reserved-memory/*`, memreserve block, `/chosen` initrd) passes
+  `host_fdtmem_test.c` against a synthetic DTB built with `dtc`. The first
+  run caught a real bug (node names were truncated to 12 characters, so
+  `reserved-memory` children were never read); fixed. The synthetic DTB is
+  not S-Boot's DTB.
+- **Build success:** `sh shim/star2lte/build.sh` builds `probe.Image`
+  (12,032 B) and the new `memmap.Image` (18,448 B) with
+  `gcc-aarch64-linux-gnu` 13.2 on Ubuntu, `-Wall -Wextra -Werror`, no
+  absolute relocations, Image header OK. Not packed, not flashed.
+- **Source-derived:** `tools/mkadt_star2lte.py` builds an ADT from the
+  facts in this file (GIC-400 `0x10101000/0x10102000`, A55 MPIDR 0x000-0x003
+  as logical CPUs 0-3, Mongoose 0x100-0x103 as 4-7, 26 MHz timebase, UFS
+  bases, FB `0xcc000000` 1440x2960). It ran here only with a synthetic
+  `/product` node (the real D22AP ADT is an Apple artifact). UFS register
+  sizes (one page each) and the nominal clocks are placeholders. It
+  **requires** `--dram-base/--dram-size`; the XNU RAM window is not chosen
+  yet because the reserved-memory map has not been read off the phone.
+
+Next on-device step: pack `memmap.Image` like the probe (Odin AP, stock
+`boot.img` undo path), photograph every page, record the DRAM banks and
+reserved ranges here, then pick the XNU RAM window and the loader log page.
+Not started: the `STAR2LTE` XNU machine config patch (0320+), the
+`xnu_boot` loader, and the 9810 UFS/DECON drivers. Open: the old herolte
+loader assumes a window below the DTB at `0x8A000000` and a log page at
+`0x8ffff000`; neither is known to be free on this phone.
+
+`tools/validate-repo.py` already reports a patch-sequence gap
+(`0129` -> `0200`) inherited from the herolte base; unrelated to this work.
