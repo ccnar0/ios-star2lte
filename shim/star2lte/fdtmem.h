@@ -27,6 +27,8 @@ struct fdtmem_stat {
     uint64_t initrd_start, initrd_end;   /* /chosen, 0 if absent */
 };
 
-/* Returns 0 on success, negative on a malformed or implausible FDT. */
+/* Returns 0 on success, negative on a malformed or implausible FDT.
+ * Disabled nodes are omitted; size-only pools are reported with base 0.
+ */
 int fdtmem_scan(uintptr_t fdt, struct fdtmem_rec *rec, unsigned max,
                 struct fdtmem_stat *st);
