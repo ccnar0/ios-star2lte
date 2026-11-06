@@ -25,7 +25,7 @@ Extracted from `lineage-23.2-*-star2lte.zip` (not in git):
 | Touch | `sec,sec_ts` at 0x48 on `/hsi2c@104B0000`, project `Star2 G965`, fw `tsp_sec/y761_star2.fw` | DTB |
 | PMIC | `samsung,s2mps18mfd@00` on SPEEDY `0x141C0000` | DTB |
 | Keys | power `gpa2-4`, vol-down `gpa0-4`, vol-up `gpa0-3`, Bixby/wink `gpa0-6` | DTB + mainline starlte DTS |
-| RAM | `0x80000000+0x3c800000`, `0xc0000000+0x20000000`, `0xe1900000+0x1e700000`, `0x8_80000000+0x80000000` | mainline starlte DTS |
+| RAM | `0x80000000+0x3c800000`, `0xc0000000+0x20000000`, `0xe1900000+0x1e700000`, `0x8_80000000+0x80000000`, `0x9_00000000+0x80000000` | exact star2lte mainline DTS; static source only |
 
 Boot image layout from the same `boot.img`: page 2048, kernel at
 `0x10008000`, ramdisk at `0x11000000`, tags at `0x10000100`, arm64
