@@ -149,8 +149,10 @@ Implications for the XNU port:
 Three kinds of claims, kept apart:
 
 - **Host-tested:** `shim/star2lte/fdtmem.c` (FDT walker for `/memory*`,
-  `/reserved-memory/*`, memreserve block, `/chosen` initrd) passes
-  `host_fdtmem_test.c` against a synthetic DTB built with `dtc`. The first
+  `/reserved-memory/*`, memreserve block, `/chosen` initrd) is tested
+  against both a generic synthetic DTB and an S9+-style 2-address-cell /
+  1-size-cell DTB. Tests cover malformed bounds/terminators, disabled
+  reservations, nested nodes, and dynamic size-only pools. The first
   run caught a real bug (node names were truncated to 12 characters, so
   `reserved-memory` children were never read); fixed. The synthetic DTB is
   not S-Boot's DTB.
@@ -167,6 +169,8 @@ Three kinds of claims, kept apart:
   sizes (one page each) and the nominal clocks are placeholders. It
   **requires** `--dram-base/--dram-size`; the XNU RAM window is not chosen
   yet because the reserved-memory map has not been read off the phone.
+
+Parser hardening now bounds node/property strings, validates FDT block offsets and alignment, requires the reservation-map terminator and a balanced structure tree, rejects partial `reg` tuples, ignores disabled nodes, and checks output arguments. The current CI run must pass both host fixtures before the updated image is treated as ready for device testing.
 
 Next on-device step: pack `memmap.Image` like the probe (Odin AP, stock
 `boot.img` undo path), photograph every page, record the DRAM banks and
