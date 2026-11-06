@@ -54,7 +54,7 @@ static unsigned put_dec(char *dst, unsigned n, unsigned v)
 
 static void show_rec(unsigned row, const struct fdtmem_rec *r)
 {
-    char line[52];
+    char line[56];
     unsigned n = 0;
     line[n++] = r->kind;
     line[n++] = ' ';
