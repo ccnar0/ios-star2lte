@@ -1,257 +1,107 @@
-# iOS 16 on the Samsung Galaxy S7 (SM-G930F, Exynos 8890) — `herolte` branch
+# iOS 16 bring-up for Samsung Galaxy S9+ (star2lte)
 
-**Status, 2026-10-31:** Apple's XNU kernel boots on a flat Galaxy S7 and runs the
-unmodified **iPhone X iOS 16.7.16 userland** to the home screen with **GPU
-acceleration**: CoreAnimation renders on the Mali-T880 through OpenGL ES (Mesa
-Panfrost under an EAGL bridge). Apps open and load, and it is usable day to day
-apart from the gaps below. There is no Metal.
+**Target:** Samsung Galaxy S9+ Exynos, **SM-G965F / SM-G965FD**, SoC Exynos 9810.  
+**Current stage (2026-11-06):** Stage 0 boot-handoff probing is confirmed on the physical phone. The next task is to read the live S-Boot memory map before selecting a safe XNU RAM window. **XNU has not been ported to or booted on star2lte yet.**
 
-| Area | State |
+This repository contains earlier HEROLTE (Galaxy S7) and A5XELTE work as reference material. Those targets are not the current device. The active S9+ work lives in `shim/star2lte/`, `tools/star2lte-*`, `.github/workflows/star2lte-probe.yml`, and [STAR2LTE_PROGRESS.md](STAR2LTE_PROGRESS.md).
+
+## Current status
+
+| Area | Status |
 | --- | --- |
-| Boot | Samsung S-Boot loads our loader from BOOT (`shim/herolte/`), which starts XNU |
-| CPU | All 8 cores. Mongoose raised from the bootloader's 728 MHz to 2600 MHz (measured 2598) at Samsung's own voltage table; UI threads prefer Mongoose, busy daemons the A53s (0274). No thermal limit yet |
-| RAM | 2 GiB of the second DRAM bank |
-| Storage | Own Exynos UFS driver; iOS root is HFSX in USERDATA, read/write, with the system apps |
-| GPU | Mali-T880 MP12 at 650 MHz through EAGL → OSMesa/Panfrost → our kernel job service. `JOB_READ_FAULT` (0x42) can still stop the GPU until reboot; not seen since the resolution below, cause unknown |
-| Display | iOS draws an iPhone 8 screen, 750×1334 @2x (72% fewer pixels), and the GPU scales it to the 1440×2560 panel. About 35-38 fps when in use, slower in the heaviest frames |
-| Navigation | Physical Home button (`home-button-type` 1). Home gestures need type 2, which brings UIKit's red rdar:45025538 status bar at this size; not solved |
-| Wallpaper | A fixed picture from the drop zone, drawn from inside SpringBoard (`gpu/eagl/src/herosb.c`). PosterBoard has no providers here, so the wallpaper gallery stays empty |
-| Touch, buttons, battery | Working |
-| Not working | modem, Wi-Fi, Bluetooth, audio, camera, sensors, sleep, Face ID. Widgets mostly wait; the lock screen's clock and date overlap |
+| Device identification | Exynos 9810 / SM-G965F and SM-G965FD target; Snapdragon variants are not supported |
+| Boot chain | Odin AP can install a repacked BOOT image; S-Boot executes our bare-metal arm64 probe |
+| Entry state | On-device probe confirms EL1, MMU off, caches on |
+| Device tree handoff | Confirmed: S-Boot passes a valid DTB in X0 at `0x8A000000` (303,771 bytes) |
+| Kernel load address | Probe v2 reports `0x80150000` |
+| Timer | `CNTFRQ_EL0` is zero; measured probe uses the 26 MHz fallback from the device tree |
+| Page-size capability | 16 KiB translation granule is supported; the XNU base configuration is still 4 KiB |
+| Memory map | FDT walker passes host tests; **live phone memory/reserved ranges still need to be captured** |
+| XNU machine config | Not started |
+| XNU loader, UFS and DECON/DSIM drivers | Not started |
+| iOS userland | Not running on this device |
 
-What made it usable, in the order found: factory GPU and CPU rates at factory
-voltages, the apps in the root image, moving `BTAudioHALPlugin` away (it kept
-asking the absent bluetoothd; idle CPU fell from over 300% to under 25% of 800%,
-found by [syncmodz/ios-s9](https://github.com/syncmodz/ios-s9)), and the lower
-resolution. Boot arguments and how to build the ADT: `tools/mkadt_herolte.py --iphone8`
-and [HEROLTE_PROGRESS.md](HEROLTE_PROGRESS.md) (Spanish).
+The complete evidence, probe measurements, source-derived hardware facts, and unresolved questions are tracked in [STAR2LTE_PROGRESS.md](STAR2LTE_PROGRESS.md). Build success, source-derived assumptions, and on-device results are intentionally kept separate.
 
-How to try it: [docs/herolte-howto.md](docs/herolte-howto.md) (erases USERDATA;
-Apple's software is not in this repository). The S7 kernel patches are
-`xnu/patches/0200` and up; the board config is `MACHINE_CONFIG=HEROLTE`.
+## Device facts
 
-Next: thermal limit, audio, Wi-Fi, more optimization. Help is welcome. Please
-open an issue with the log from `tools/herolte-log-pull.py` and a photo of the screen.
+The initial hardware map was derived from the user's LineageOS 23.2 boot image and Samsung Exynos 9810 device-tree sources. Important values include:
 
-Credits: Mesa/Panfrost, [HakiOS](https://github.com/oosexgang/hackios-xnu-kernel) EAGL bridge (`gpu/hakios-gl`, see its NOTICE),
-Bergamota's EAGL shim (`gpu/eagl`), [ios-sweet](https://github.com/dipa-studio/ios-sweet),
-[syncmodz/ios-s9](https://github.com/syncmodz/ios-s9) and the LineageOS Exynos 8890 kernel for the hardware tables.
+- CPU clusters: four Cortex-A55 cores and four Mongoose M3 cores.
+- GIC-400 at `0x10101000` / `0x10102000`.
+- 26 MHz architectural timer.
+- UFS 2.1 controller at `0x11120000`, with vendor, UniPro, and protector blocks.
+- DECON_F at `0x16030000`, DSIM at `0x16080000`, DPHY at `0x16160000`.
+- Display: 1440 × 2960; framebuffer address `0xCC000000` is source-derived and must be validated against the live memory map.
+- Touch controller: Samsung sec_ts at I²C address `0x48`.
 
-Based on [orhunnx/ios-a5xelte](https://github.com/orhunnx/ios-a5xelte) (A5 2016)
-and its Redmi Note 10 Pro donor, documented below.
+These are not all confirmed runtime mappings. In particular, the usable DRAM window, reserved regions, UFS register sizing, and nominal peripheral clocks must be validated before the XNU loader or drivers use them.
 
----
+## Stage 0: boot-handoff probe
 
-# ios-a5xelte (SM-A510F experimental port)
+The probe is a small bare-metal arm64 Image packed into a copy of the stock Samsung BOOT image. It reports firmware handoff state on the display and then reboots into recovery.
 
-This fork targets the Samsung Galaxy A5 (2016), `a5xelte` / Exynos7580. The original `ios-sweet` README remains below as a **donor reference**. Its iOS home-screen claim, Xiaomi boot commands, 16 KiB pages, UFS root, Qualcomm drivers and `userdata` flashing instructions do **not** describe the Samsung port.
+The v2 probe was run on the physical SM-G965F:
 
-**A5XELTE status, 2026-10-20:** A 4 KiB, A5XELTE-configured XNU 8796 kernel enters on the physical SM-A510F. The Samsung BOOT loader hands off the firmware display through Exynos7580 DECON/DSIM. The user has verified XNU-owned assembly text and dynamic C/`kprintf` output through VM bootstrap, CPU0 self-IPI, pthread registration, scheduled network workers and passing Skywalk self-tests. An 8 MiB HFS+ RAM disk was mounted earlier. The new Exynos7580 read-only eMMC driver identifies GPT `SYSTEM` p20 as `/dev/emmcroot0`; the phone screen confirms `BSD root: emmcroot0` and `hfs: mounted A5XNU on device b(1, 0)`. The A5XELTE unsigned-root exception passes the next check, and XNU attempts process 1. The HFS volume is empty, so `/sbin/launchd` is missing and iOS userland is not running.
-
-The A5XELTE path uses `shim/a5xelte/`, `tools/mkadt_a5xelte.py`, `tools/a5xelte-pack-probe.py` and XNU patches `0082` onward. BOOT p10 carries the test XNU; the user also explicitly authorized replacing Linux SYSTEM p20 with a dedicated HFS+ root. Recovery p11, EFS p3 and USERDATA p23 are preserved. Device and build evidence is in [A5XELTE_PROGRESS.md](A5XELTE_PROGRESS.md), with technical setup in [docs/a5xelte-bringup.md](docs/a5xelte-bringup.md). [docs/a5xelte-migration-map.md](docs/a5xelte-migration-map.md) tracks which donor components can be reused and when SWEET-specific code can be retired.
-
-## Original ios-sweet README (donor reference)
-
-# ios-sweet
-
-**Apple's iOS 16 running on a Redmi Note 10 Pro.**
-
-This project ports Apple's open-source XNU kernel (xnu-8796, the iOS 16 generation) to the Xiaomi Redmi Note 10 Pro (`sweet`, Qualcomm SM7150 / Snapdragon 732G). On top of it runs the **unmodified iOS 16.7.16 (20H392) userland of the iPhone X**: launchd, the system daemons, backboardd, SpringBoard and the stock apps.
-
-As of **2026-10-18** the phone boots to the **iOS home screen**. You can unlock it, open Settings, pull down Control Center and the notification center, and use the touchscreen and the hardware buttons. Rendering runs entirely on the CPU; there is no GPU driver.
-
-> Experimental bring-up, not a usable phone OS. Many things are missing or stubbed (see below), and Apple's security model is mostly switched off. It installs into the `userdata` partition and so **erases Android's user data**.
-
-## What works
-
-| Area | State |
+| Field | Observed value |
 | --- | --- |
-| Boot | Stock Xiaomi bootloader → `fastboot boot` of our shim → XNU. Nothing is flashed to the boot partitions |
-| CPU | 6 of the 8 cores (the six Cortex-A55s) via PSCI, 16K pages, GICv3 interrupts, timers |
-| Memory | About 3.95 GiB of the upper DDR bank |
-| Storage | Own UFS host driver; the iOS root is a journaled HFS+ volume in `userdata`, read/write |
-| iOS userland | Real iPhone X 16.7.16 root filesystem and shared cache; launchd and the system daemons run |
-| Display | Kernel IOSurface + IOMobileFramebuffer (`AppleCLCD`) services; CoreAnimation renders in software; frames are copied into the bootloader's framebuffer. Presented to iOS as an iPhone X panel (1125×2436) |
-| GUI | backboardd, SpringBoard, lock screen, home screen, Control Center, notification center, Settings |
-| Touch | Goodix GT9896 over I²C (GENI), rail enabled through RPMh, delivered as HID digitizer events |
-| Buttons | Power, volume up/down (PMIC through SPMI) as HID consumer keys; lock/wake works |
-| Battery | IOPMPowerSource service (static 100 %, charging icon; real fuel-gauge readout prepared) |
-| Device identity | iPhone X (`iPhone10,3` / `D22AP`): no Home button, gesture UI |
-| Activation | Native "Hactivation" path of mobileactivationd, chosen through device-tree security status. No Apple servers involved |
+| Exception level | EL1 |
+| `SCTLR_EL1` | `0x30C5183E` (MMU off; I-cache and D-cache on) |
+| Image load address | `0x80150000` |
+| X0 | `0x8A000000` (valid FDT magic `D00DFEED`) |
+| FDT size | `0x4A29B` |
+| `CNTFRQ_EL0` | `0` |
+| Boot CPU | Cortex-A55 r1p1, MPIDR affinity 0 |
+| 16 KiB granule | Supported |
+| Previous DECON trigger | `0x3070` |
 
-## What does not work (yet)
+The probe does not write storage, EFS, regulators, the MMU, or the bootloader. It does request a PMU reset into recovery after its report. The phone's display has a known fault in its top half, so the report is positioned in the working lower area.
 
-- **Navigation:** you cannot leave an app (the home gesture and AssistiveTouch Home do nothing yet).
-- **No Wi-Fi, Bluetooth, cellular, audio, camera, sensors, GPS or SEP / Face ID.** Daemons for them start and fail or keep relaunching.
-- **No GPU.** Everything is drawn by the CPU at roughly 20–30 fps. The two Cortex-A76 cores are not used yet.
-- **Few apps.** The image has only what is on the system volume. There is no App Store, no Apple ID, and some Settings pages are empty.
-- **Slow boot:** about 4 minutes on the Apple logo.
-- **Security is off:** permissive code signing (AMFI) and sandbox policies, a stub AppleKeyStore, no data protection. Do not put anything personal on it.
+## Next step: live memory-map capture
 
-## How it boots
+`shim/star2lte/fdtmem.c` walks the FDT for DRAM banks, reserved-memory nodes, header reservations, and `/chosen` initrd ranges. It passes a host test using a synthetic DTB. The resulting `memmap.Image` has **only been built and host-tested; it has not yet been flashed or run on the phone**.
 
-```
-ABL (stock Xiaomi bootloader, unlocked)
-  -> fastboot boot shim-boot.img              (temporary; nothing is flashed to boot)
-     -> shim: own MMU setup, reads the live FDT, loads the payload from the ramdisk
-        -> XNU Mach-O + generated Apple Device Tree (ADT) + boot-args
-           -> XNU -> UFS driver -> HFS+ root in the userdata partition
-              -> dyld + shared cache -> launchd -> daemons -> backboardd + SpringBoard
-```
+After collecting the live S-Boot map, record every DRAM and reserved range in [STAR2LTE_PROGRESS.md](STAR2LTE_PROGRESS.md). Only then choose the XNU RAM window and persistent log location. Do not reuse the old HEROLTE loader's assumed addresses without validating them on star2lte.
 
-There is no serial port (the debug UART is wired as SPI on this board). The kernel draws its console into the framebuffer that ABL leaves at `0x9c000000`, and keeps a persistent 4 MiB log ring at the end of `userdata`. You read that log from OrangeFox recovery with `tools/sweet-log-pull.sh`, so you don't have to film the screen.
+## Build the probe
 
-## How to do it yourself
-
-You need a Redmi Note 10 Pro (`sweet`, global or Indian variant, SM7150) with an **unlocked bootloader**, a Linux PC, and a GitHub account for the kernel build. This is the exact path used for the screenshots above; other variants or firmware may need changes. **Everything on `userdata` is lost.** Bootloaders, recovery, modem and persist partitions are never touched.
-
-### 0. Back up the phone
-
-Boot OrangeFox (or any recovery with adb root) temporarily and pull at least `persist`, `modemst1`, `modemst2`, `fsg`, `fsc` and `boot`, `dtbo`, `vbmeta`. They contain per-device calibration data. Keep them off git; `.gitignore` already excludes `backup/`, `dtb/` and `recovery/`.
-
-The shim needs the stock DTB. Unpack your phone's stock `boot.img`:
+The GitHub Actions workflow builds the probe on Ubuntu:
 
 ```sh
-python3 tools/unpack_bootv2.py backup/boot.img dtb/boot_unpacked   # -> dtb/boot_unpacked/dtb
+gh workflow run star2lte-probe.yml -R ccnar0/ios-star2lte
+gh run watch -R ccnar0/ios-star2lte
+gh run download -R ccnar0/ios-star2lte -n star2lte-probe -D out
 ```
 
-### 1. Build the kernel
-
-The kernel builds on GitHub's macOS runners with [blacktop/darwin-xnu-build](https://github.com/blacktop/darwin-xnu-build). The workflow fetches xnu-8796, applies `xnu/patches/` in order, and also stages the pinned open-source libpthread, HFS and BearSSL sources it needs. Fork the repo (public repos get free macOS minutes) and run:
+Or build locally on Linux/WSL with the AArch64 GNU cross compiler:
 
 ```sh
-gh workflow run xnu.yml -R YOU/ios-sweet
-gh run download RUN_ID -R YOU/ios-sweet -n xnu-kernel -D xnu/out
+sh shim/star2lte/build.sh
 ```
 
-To check a patch locally before spending a CI run, `tools/xnu-cc.py` replays the compile commands of a previous CI log for single files.
+See [shim/star2lte/README.md](shim/star2lte/README.md) for probe packaging, Odin AP testing, recovery instructions, and the memory-map probe procedure. Always keep the untouched stock BOOT/AP firmware available as the recovery path and verify the exact device variant before testing.
 
-### 2. Build the iOS root image
+## Repository map
 
-Download the iPhone X (iPhone10,3) iOS 16.7.16 (20H392) IPSW from Apple. Then, on Linux, with `apfs-fuse`, `hfsprogs` and sudo:
-
-```sh
-# OS, SystemOS and AppOS disk images from the IPSW (see BuildManifest.plist for their names)
-tools/mkiosroot.sh OS.dmg SystemOS.dmg AppOS.dmg ios16-root.img 16G
-sudo fsck.hfsplus -fy ios16-root.img
-sudo mount -t hfsplus -o loop,force ios16-root.img /mnt/iosroot
-sudo python3 tools/sweet-root-tweaks.py /mnt/iosroot
-sudo umount /mnt/iosroot
-img2simg ios16-root.img ios16-root.simg
-```
-
-`mkiosroot.sh` copies the OS volume and both cryptexes into one case-sensitive journaled HFS+ volume. It adds the dyld cache links, the plain system keybag and the log directories the daemons expect. `sweet-root-tweaks.py` applies the bring-up changes: it skips Setup, seeds the activation state, removes the baseband daemon, disables the watchdogs that kill slow apps and the crash-looping media paths, and so on. The script's header explains each change.
-
-The device tree builder copies `/product` from the real iPhone X device tree, which MobileGestalt needs. Extract it once, without downloading the whole IPSW:
-
-```sh
-python3 tools/remotezip.py IPSW_URL DeviceTree.d22ap.im4p research/ipsw-x/dt
-ipsw img4 im4p extract research/ipsw-x/dt/Firmware/all_flash/DeviceTree.d22ap.im4p -o research/ipsw-x/d22ap.adt
-```
-
-### 3. Build the boot image
-
-Needs `aarch64-linux-gnu-gcc` and `mkbootimg`.
-
-```sh
-python3 tools/mkadt.py shim/out/sweet.adt --highmem
-python3 tools/mkpayload.py xnu/out/kernel.development.sweet shim/out/sweet.adt shim/out/payload.bin \
-    --cmdline 'debug=0xc serial=3 cpus=6 keepsyms=1 -enable_kprintf_spam -noprogress rd=ufsroot0 unentitled_ios_sim_launch=1 ignition_level=1 wdt_test=no_user_checkin ufsrw=1 rootrw=1 launchd_unsecure_cache=1 wdt=-1 sweetfb_noconsole=1 sweetfb_hz=30'
-shim/build.sh ../shim/out/payload.bin      # -> shim/out/shim-boot.img
-```
-
-What the less obvious boot-args do:
-
-| Boot-arg | Effect |
+| Path | Purpose |
 | --- | --- |
-| `rd=ufsroot0 ufsrw=1 rootrw=1` | Root on the `userdata` partition, writable |
-| `cpus=6` | Start the six A55 cores; `cpus=1` is the safe fallback |
-| `launchd_unsecure_cache=1` | launchd accepts its job cache without AMFI |
-| `wdt=-1 wdt_test=no_user_checkin` | No hardware watchdog |
-| `sweetfb_noconsole=1` | Stop drawing kernel text over the GUI. It still goes to the persistent log; panics are drawn |
-| `sweetfb_hz=30` | Panel refresh rate of the CPU copy |
-| `sweettouch=0`, `sweetkeys=0` | Disable the touch or button driver |
+| `shim/star2lte/` | S9+ bare-metal handoff and memory-map probes |
+| `tools/star2lte-pack-boot.py` | Packs a probe Image while preserving the Samsung BOOT structure |
+| `tools/mkadt_star2lte.py` | Experimental Apple Device Tree generator; requires a validated DRAM window |
+| `.github/workflows/star2lte-probe.yml` | CI build for the S9+ probes |
+| `STAR2LTE_PROGRESS.md` | Device facts, test evidence, current blockers, and next steps |
+| `shim/herolte/`, `tools/*herolte*` | Galaxy S7 reference implementation; not the S9+ target |
+| `shim/a5xelte/`, `docs/a5xelte-*` | Galaxy A5 2016 reference work |
 
-### 4. Flash the root and boot
+## Safety and scope
 
-```sh
-fastboot -S 512M flash userdata ios16-root.simg   # ~7 minutes; do not unplug
-# Xiaomi's fastboot often hangs after a large flash: re-enter fastboot with Power + Volume down
-fastboot boot shim/out/shim-boot.img
-```
-
-The first boot takes about 4–5 minutes on the Apple logo, then the lock screen appears. Swipe up to unlock. To get back to fastboot, hold Power + Volume down.
-
-### 5. Read the kernel log
-
-```sh
-fastboot boot recovery/recovery.img        # OrangeFox, temporary
-tools/sweet-log-pull.sh logs/boot.txt      # 4 MiB console ring from the end of userdata
-adb reboot bootloader
-```
-
-The log contains crash reports with backtraces (`CRASH name ...`), IOKit traces of backboardd and SpringBoard, and the drivers' `SWEET ...` lines. `tools/sweet-crash.py` symbolicates them against the shared cache.
-
-### QEMU
-
-`tools/qemu-sweet.py` boots the same kernel on QEMU `virt` with a test RAM-disk root. It is useful for kernel-only changes; see `NOTES.md`.
-
-## Repository layout
-
-| Path | What |
-| --- | --- |
-| `shim/` | Bare-metal boot shim (C + asm) packed as an Android boot.img v2 |
-| `xnu/patches/` | The XNU patch series (applied in order by CI), plus staging scripts for libpthread, HFS and BearSSL |
-| `.github/workflows/xnu.yml` | Kernel CI build |
-| `tools/mkadt.py` | Generates the Apple Device Tree from sweet's MMIO layout and the iPhone X identity |
-| `tools/mkpayload.py` | Packs kernel + ADT + boot-args into the shim payload |
-| `tools/mkiosroot.sh` | Builds the HFS+ iOS root from the IPSW images |
-| `tools/sweet-root-tweaks.py` | Bring-up changes to the root (Setup skip, activation, daemons) |
-| `tools/sweet-log-pull.sh`, `sweet-log.py` | Read the persistent kernel log from recovery |
-| `tools/sweet-crash.py` | Symbolicate console crash reports |
-| `tools/xnu-cc.py` | Local single-file compile check from a CI log |
-| `tools/qemu-sweet.py` | QEMU test boots with framebuffer text decoding |
-| `tools/adt.py`, `remotezip.py`, `unpack_bootv2.py`, `sparsediff.py` | Helpers |
-| `NOTES.md` | Detailed engineering log: every boot, crash and decision, plus hardware facts |
-
-Not in git: partition backups, live device trees, recovery images, Apple firmware and root images, and downloaded or generated build trees. They contain device serials and calibration data, or Apple's copyrighted files.
-
-## Kernel patches
-
-| # | What |
-| --- | --- |
-| 0001–0009 | Toolchain compatibility, SWEET machine config, non-PAC arm64, stubs for Apple-internal pieces |
-| 0010–0018 | Early framebuffer console, physmap fix, PRNG without corecrypto, device-tree platform expert, timer PPI, boot CPU driver |
-| 0019–0020 | Apple open-source libpthread kernel provider; BearSSL AES |
-| 0021–0027 | RAM-disk root, mockfs, SHA-256, minimal AMFI, Apple open-source HFS+, MD5 |
-| 0028–0034 | UFS host driver and root device, read/write root, DMA above 4 GiB |
-| 0035–0045 | Entitlements, bindfs, AppleKeyStore stub, IOWatchdog, console crash reports |
-| 0046 | IOSurface (IOCoreSurfaceRoot) and IOMobileFramebuffer (AppleCLCD) services |
-| 0047–0055 | Diagnostics: persistent log, /dev/null tee, IOKit trace, heap strings and user stack sampler on crash; permissive Sandbox policy; HFS rename-swap; AppleKeyStore selectors |
-| 0056–0057 | Throttled panel copy; no external identity resolver |
-| 0058 | HID event services. Apple's IOHIDFamily-1915.140.3 user client and event queue, matching the iOS 16.7 userland |
-| 0059 | iPhone X identity (`hw.product` / `hw.target` from the device tree) |
-| 0060 | Power and volume keys over SPMI; touch over GENI I²C |
-| 0061 | Present the display as 1125×2436 |
-| 0062 | RPMh regulator vote for the touch rail; battery power source |
-| 0063 | GENI FIFO packing fix and the Goodix GT9896 protocol |
-| 0064 | Grant PRIV_WORK_INTERVAL (UIKit's CoreAnimation work interval) |
-| 0065 | SMP: secondary A55 cores via PSCI CPU_ON |
-| 0066–0067 | Fault-region crash info; console mute |
-| 0068 | IOSurface lookup semantics for already-mapped surfaces |
-| 0069 | Batched persistent-log flushes |
-
-## Key hardware facts
-
-- RAM: payloads use the upper bank, `0x100000000` + `0xfcc00000` (about 3.95 GiB), above Qualcomm's protected carve-outs.
-- GICv3 with security extensions: the timer goes through Group 1 IRQ (virtual timer INTID 19), not FIQ as on Apple silicon.
-- PSCI through `smc`, 19.2 MHz timer, ARMv8.2 without pointer authentication. MPIDR uses Aff1 for the core number.
-- Panel: 1080×2400 DSC video mode, continuous splash from ABL, no refresh kick needed.
-- Touch: Goodix GT9896 at I²C `0x5d` on QUP SE7 (`0xa84000`), powered by PM6150L LDO11 through RPMh.
-- Buttons: power and volume down on the PM6150 PON block, volume up on PM6150L GPIO2 (SPMI SID 4).
-
-More in [`NOTES.md`](NOTES.md).
+- This is experimental kernel/boot-chain research, not a usable phone OS.
+- Do not use these instructions on Snapdragon S9+ variants or other Samsung models.
+- Back up the original boot image and preserve a known-good stock AP firmware before any boot-image test.
+- Do not write to EFS, modem, USERDATA, or partition tables as part of the current probe stage.
+- Keep device-specific backups, DTBs, calibration data, firmware images, and generated iOS root images out of Git.
+- Apple's iOS firmware and userland are not included in this repository. Do not redistribute Apple's copyrighted images.
 
 ## Credits
 
-Built on Apple's open-source releases (xnu, IOHIDFamily, libpthread, hfs), [BearSSL](https://bearssl.org), [blacktop/darwin-xnu-build](https://github.com/blacktop/darwin-xnu-build), [ipsw](https://github.com/blacktop/ipsw), Qualcomm/Xiaomi's published Linux kernel sources for the hardware details, and [OrangeFox Recovery](https://orangefox.download). iOS itself is Apple's and is not distributed here.
+The work builds on Apple's published XNU sources, Samsung/LineageOS Exynos device-tree and kernel sources, and the existing HEROLTE/A5XELTE research in this repository. See individual source files and patch headers for component-specific attribution and licenses.
