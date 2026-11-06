@@ -1,0 +1,43 @@
+/dts-v1/;
+/memreserve/ 0x80000000 0x10000;
+/ {
+    compatible = "Samsung, Star2 rev26", "Samsung,EXYNOS9810";
+    #address-cells = <2>;
+    #size-cells = <1>;
+
+    memory@80000000 {
+        device_type = "memory";
+        reg = <0 0x80000000 0x40000000>;
+    };
+
+    reserved-memory {
+        #address-cells = <2>;
+        #size-cells = <1>;
+        ranges;
+
+        modem_if {
+            compatible = "exynos,modem_if";
+            reg = <0 0xf0000000 0x09200000>;
+        };
+        secure_camera {
+            compatible = "exynos8890-ion,secure_camera";
+            reg = <0 0xe1900000 0x01e00000>;
+        };
+        exynos_ss {
+            reg = <0 0xfda00000 0x01c08000>;
+            #address-cells = <2>;
+            #size-cells = <1>;
+            header { reg = <0 0xfda00000 0x10000>; };
+        };
+        tima_region@b8000000 {
+            status = "disabled";
+            compatible = "removed-dma-pool";
+            reg = <0 0xb8000000 0x200000>;
+        };
+        video_stream {
+            ion,reusable;
+            size = <0x06c00000>;
+            alloc-ranges = <0 0x40000000 0xb0000000>;
+        };
+    };
+};
