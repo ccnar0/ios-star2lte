@@ -28,7 +28,10 @@ The stage-0 v2 probe has run on the physical SM-G965F:
 
 The FDT memory-map image has only been built and host-tested. It has NOT
 been flashed or run on the phone. The live DRAM/reserved-memory map is
-still the immediate blocker.
+still the immediate blocker. The exact S9+ mainline DTS reports 6 GiB with
+high banks at 0x880000000 and 0x900000000; the second bank was missing from
+the earlier progress list. Treat both as static source facts until the live
+S-Boot DTB confirms them.
 
 XNU has not been ported to or booted on star2lte. There is no completed
 STAR2LTE XNU machine configuration, XNU loader, UFS driver, or display
@@ -52,8 +55,12 @@ historical notes are not the current validated procedure.
 - Any new device write or change to the boot/recovery sequence requires
   explicit review. Prefer read-only probes and a known stock recovery path.
 
-See `shim/star2lte/README.md` for the exact current packaging steps and
-`STAR2LTE_PROGRESS.md` for evidence and unresolved assumptions.
+See `shim/star2lte/README.md` for the exact current packaging steps,
+`docs/STAR2LTE_REFERENCE_SOURCES.md` for the exact-board Linux DTS and
+HakiOS sibling-port references, and `STAR2LTE_PROGRESS.md` for evidence
+and unresolved assumptions. The public HakiOS `starlte` port proves iOS
+16.5/XNU on the S9 sibling, not on `star2lte`; its UEFI/Carbon/PSCI path
+and M3 PMU preparation are research leads, not drop-in code.
 
 ## Build and test
 
