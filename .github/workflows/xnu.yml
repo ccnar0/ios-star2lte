@@ -19,7 +19,7 @@ on:
         description: GitHub runner image (empty = macos-15-intel)
         default: ""
   push:
-    branches: [main, herolte, codex/a5xelte-bringup]
+    branches: [main, herolte, codex/a5xelte-bringup, codex/star2lte-xnu-target]
     paths:
       - "xnu/patches/**"
       - ".github/workflows/xnu.yml"
@@ -33,7 +33,7 @@ env:
   DXB_SHA: 663906528d1cd5ea8fde7de6f16de73db9511549
   MACOS_VERSION: ${{ inputs.macos_version || '13.5' }}
   KERNEL_CONFIG: ${{ inputs.kernel_config || 'DEVELOPMENT' }}
-  MACHINE_CONFIG: ${{ inputs.machine_config || 'HEROLTE' }}
+  MACHINE_CONFIG: ${{ inputs.machine_config || 'STAR2LTE' }}
 
 jobs:
   build:
