@@ -1,7 +1,5 @@
 #!/bin/sh
-# Build the star2lte S-Boot Image: out/probe.Image (stage-0 handoff probe).
-# No packaging or flashing. Any bare-metal or Linux aarch64 GCC works, e.g.
-#   CROSS=aarch64-none-elf- sh build.sh
+# Build STAR2LTE S-Boot diagnostics. No packaging or flashing.
 set -eu
 cd "$(dirname "$0")"
 : "${CROSS:=aarch64-linux-gnu-}"
@@ -17,7 +15,6 @@ image() {
         objs="$objs $obj"
     done
     "${CROSS}ld" -static -T image.ld --build-id=none --no-warn-rwx-segments $objs -o "out/$name.elf"
-    # A raw Image must be position independent: no absolute relocations.
     if "${CROSS}readelf" -r $objs | grep -q 'ABS64'; then
         echo "$name: absolute relocation found" >&2
         exit 1
@@ -28,14 +25,11 @@ image() {
 import sys
 from pathlib import Path
 p = Path(sys.argv[1]).read_bytes()
-assert p[56:60] == b'ARMd', 'missing arm64 Image magic'
-# --append puts the payload at the 4 KiB-padded end, which must be _image_end.
+assert len(p) >= 64 and p[56:60] == b'ARMd', 'missing arm64 Image magic'
 assert (len(p) + 4095) // 4096 * 4096 == int(sys.argv[2], 16), '_image_end mismatch'
 print(f'{sys.argv[1]}: {len(p)} bytes; arm64 Image header OK')
 PY
 }
-
 image probe probe.S probe.c fbtext.c ../fdt.c
-# Memory-map probe: reuses probe.S, prints DRAM banks + reserved ranges from
-# S-Boot's FDT (X0). Pack and flash it exactly like probe.Image.
 image memmap probe.S memmap.c fdtmem.c fbtext.c
+image preflight probe.S preflight.c fdtmem.c fbtext.c
