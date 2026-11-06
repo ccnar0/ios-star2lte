@@ -13,6 +13,12 @@ on:
         required: true
         default: "57671680"
         type: string
+  push:
+    branches: [main]
+    paths:
+      - "shim/star2lte/**"
+      - "tools/star2lte-pack-boot.py"
+      - ".github/workflows/star2lte-odin-preflight.yml"
 
 permissions:
   contents: read
@@ -34,7 +40,7 @@ jobs:
 
       - name: Verify stock BOOT input
         env:
-          STOCK_BOOT_PATH: ${{ inputs.stock_boot_path }}
+          STOCK_BOOT_PATH: ${{ inputs.stock_boot_path || 'test-results/memmap-2026-11-06/boot.img.lz4' }}
         run: |
           test -f "$STOCK_BOOT_PATH" || {
             echo "::error::Missing $STOCK_BOOT_PATH. Check the stock BOOT upload path in main, then run this workflow again."
@@ -50,7 +56,7 @@ jobs:
 
       - name: Pack preflight kernel into stock BOOT and make Odin AP TAR
         env:
-          PARTITION_BYTES: ${{ inputs.boot_partition_bytes }}
+          PARTITION_BYTES: ${{ inputs.boot_partition_bytes || '57671680' }}
         run: |
           case "$PARTITION_BYTES" in
             ''|*[!0-9]*) echo "::error::BOOT partition size must be an integer"; exit 1 ;;
@@ -63,11 +69,10 @@ jobs:
           tar -C package-out -cf package-out/star2lte-preflight-odin.tar boot.img
           test "$(tar -tf package-out/star2lte-preflight-odin.tar)" = "boot.img"
           python3 - <<'PY'
-          import pathlib, struct
+          import pathlib
           p = pathlib.Path("package-out/boot.img")
           b = p.read_bytes()
           assert b[:8] == b"ANDROID!", "bad Android boot magic"
-          assert b[56:60] == b"\x00\x00\x00\x00" or len(b) > 0
           print(f"Android BOOT candidate: {len(b)} bytes")
           print(f"Odin TAR: {pathlib.Path('package-out/star2lte-preflight-odin.tar').stat().st_size} bytes")
           PY
