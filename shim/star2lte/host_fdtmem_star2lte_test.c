@@ -45,7 +45,10 @@ int main(int argc, char **argv)
            rc, st.totalsize, len, st.count, st.dropped);
     EXPECT(rc == 0);
     EXPECT(st.totalsize == len);
-    EXPECT(has(rec, st.count, 'M', "memory", 0x80000000ULL, 0x40000000ULL));
+    EXPECT(has(rec, st.count, 'M', "memory", 0x80000000ULL, 0x3c800000ULL));
+    EXPECT(has(rec, st.count, 'M', "memory", 0xc0000000ULL, 0x20000000ULL));
+    EXPECT(has(rec, st.count, 'M', "memory", 0xe1900000ULL, 0x1e700000ULL));
+    EXPECT(has(rec, st.count, 'M', "memory", 0x880000000ULL, 0x80000000ULL));
     EXPECT(has(rec, st.count, 'M', "memory", 0x900000000ULL, 0x80000000ULL));
     EXPECT(has(rec, st.count, 'R', "modem_if", 0xf0000000ULL, 0x09200000ULL));
     EXPECT(has(rec, st.count, 'R', "secure_camera", 0xe1900000ULL, 0x01e00000ULL));
