@@ -25,11 +25,6 @@ static uint64_t read_counter(void)
     __asm__ volatile("isb; mrs %0, cntpct_el0" : "=r"(v));
     return v;
 }
-static uint64_t read_reg(const char *which)
-{
-    (void)which;
-    return 0;
-}
 static uint32_t be32(uintptr_t p)
 {
     return __builtin_bswap32(*(volatile const uint32_t *)p);
@@ -90,7 +85,8 @@ void star2lte_probe_main(uintptr_t x0, uintptr_t x1, uintptr_t x2, uintptr_t x3,
     result(3, "MMU OFF", mmu_off);
     result(4, "4K GRANULE", granule4k);
 
-    int fdt_ok = x0 && (x0 & 7U) == 0 && be32(x0) == FDT_MAGIC;
+    int fdt_addr_safe = x0 >= 0x80000000UL && x0 < 0xbc800000UL;
+    int fdt_ok = fdt_addr_safe && (x0 & 7U) == 0 && be32(x0) == FDT_MAGIC;
     int scan_ok = fdt_ok && fdtmem_scan(x0, recs, 160, &map) == 0 &&
                   map.count > 0 && map.dropped == 0 && map.totalsize >= 40;
     result(5, "FDT SCAN", scan_ok);
