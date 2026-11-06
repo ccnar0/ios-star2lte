@@ -2,7 +2,8 @@
  * STAR2LTE read-only XNU loader/memory-ownership audit.
  * Not an allocator or XNU loader: it validates S-Boot handoff and refuses
  * to choose RAM while size-only reserved pools have no physical base.
- * No memory allocation/overwrite, MMU, PSCI, UFS, PMU or other-core writes.
+ * C path performs no RAM allocation/overwrite, MMU, PSCI, UFS or other-core
+ * writes. The shared probe.S wrapper retains its existing PMU recovery reset.
  */
 #include <stdint.h>
 #include "fbtext.h"
