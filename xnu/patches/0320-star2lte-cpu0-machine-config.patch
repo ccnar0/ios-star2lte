@@ -11,7 +11,7 @@ new file mode 100644
 index 0000000..0000000
 --- /dev/null
 +++ b/config/MASTER.arm64.star2lte
-@@ -0,0 +1,117 @@
+@@ -0,0 +1,118 @@
 +#
 +# star2lte (SM-G965F, Exynos 9810): initial CPU0-only compile target.
 +# Reuses the generic A5XELTE ARM64 pmap/assembly scaffolding for the first
@@ -141,8 +141,7 @@ index 0000000..0000000 100644
 +# Galaxy S9+ (Exynos 9810): compile-only CPU0 target; board runtime support follows.
 +MACHINE_FLAGS_ARM64_STAR2LTE = -DARM64_BOARD_CONFIG_A5XELTE -DARM64_BOARD_CONFIG_STAR2LTE -mcpu=cortex-a55 -march=armv8.2-a+crypto
 @@ -264,7 +266,7 @@ ifneq ($(filter $(CURRENT_MACHINE_CONFIG),SWEET A5XELTE HEROLTE),)
--ifeq ($(filter $(CURRENT_MACHINE_CONFIG),SWEET A5XELTE HEROLTE),)
-+ifeq ($(filter $(CURRENT_MACHINE_CONFIG),SWEET A5XELTE HEROLTE STAR2LTE),)
+undefined
 @@ -343,7 +345,7 @@ endif
 -ifeq ($(filter $(CURRENT_MACHINE_CONFIG),A5XELTE HEROLTE),)
 +ifneq ($(filter $(CURRENT_MACHINE_CONFIG),A5XELTE HEROLTE STAR2LTE),)
