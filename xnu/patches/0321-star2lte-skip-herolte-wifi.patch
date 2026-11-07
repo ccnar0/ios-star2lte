@@ -1,0 +1,30 @@
+diff --git a/bsd/dev/herolte_wifi.c b/bsd/dev/herolte_wifi.c
+index fee06e2..274390c 100644
+--- a/bsd/dev/herolte_wifi.c
++++ b/bsd/dev/herolte_wifi.c
+@@ -5,7 +5,13 @@
+  * its shared structure in the last word of the RAM, and its own console tells the rest.
+  *
+  * The firmware, the NVRAM and the CLM are the phone's own, from VENDOR, in the drop zone: they are not in this repository.
++ *
++ * This is the Exynos 8890 BCM4359 driver. STAR2LTE is the Exynos 9810
++ * board and has no such chip, so its build must not link the en0/wifi
++ * callbacks: the net stack they call (bsd/dev/sweet_net.c and friends) is
++ * built only for SWEET and HEROLTE.
+  */
++#if !defined(ARM64_BOARD_CONFIG_STAR2LTE)
+ #include <stdarg.h>
+ #include <sys/param.h>
+ #include <sys/systm.h>
+@@ -2137,4 +2143,8 @@ herolte_wifi_files_ready(void)
+ 	}
+ 	vnode_put(vp);
+ 	return true;
+-}
+\ No newline at end of file
++}
++#else
++/* An empty translation unit is a warning under this build's flags. */
++typedef int star2lte_herolte_wifi_not_built;
++#endif /* !ARM64_BOARD_CONFIG_STAR2LTE */
+\ No newline at end of file
