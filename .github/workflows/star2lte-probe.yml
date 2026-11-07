@@ -31,6 +31,19 @@ jobs:
           sudo apt-get install -y --no-install-recommends gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu device-tree-compiler
       - name: Check STAR2LTE ADT generator syntax
         run: python3 -m py_compile tools/mkadt_star2lte.py
+      - name: Generate the STAR2LTE ADT
+        run: |
+          python3 tools/mkadt_star2lte.py /tmp/star2lte.adt \
+            --dram-base 0x92000000 --dram-size 0x1d800000
+          test -s /tmp/star2lte.adt
+          python3 - /tmp/star2lte.adt <<'PY'
+          import sys
+          sys.path.insert(0, "tools")
+          import mkpayload
+          base, size = mkpayload.adt_dram(open(sys.argv[1], "rb").read())
+          assert (base, size) == (0x92000000, 0x1d800000), (hex(base), hex(size))
+          print(f"ADT dram {base:#x}+{size:#x}")
+          PY
       - name: Build stage-0, memory-map, XNU preflight and loader images
         run: sh shim/star2lte/build.sh
       - name: Test FDT memory-map parser on host
