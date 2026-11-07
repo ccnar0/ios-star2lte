@@ -44,6 +44,20 @@ def child(node, name):
     raise ValueError(f'missing donor ADT node {name}')
 
 
+def product_node(root):
+    """The /product node. mkadt.build copies it from the D22AP donor ADT;
+    when that Apple artifact is absent (it is not in this repository) make a
+    minimal one so the ADT can still be generated. It only carries the
+    artwork properties set below; the first console-only boot does not read
+    the rest of /product."""
+    try:
+        return child(root, 'product')
+    except ValueError:
+        node = mkadt.node('product', [])
+        root.children.append(node)
+        return node
+
+
 def build(canvas, dram, scale=3):
     root = mkadt.build(seed=os.urandom(64), qemu=True)
     if scale == 2:
@@ -52,7 +66,7 @@ def build(canvas, dram, scale=3):
         # fewer pixels for the CPU renderer. Boot args: sweetfb_scale=1
         # sweetfb_lw=828 sweetfb_lh=1792 sweetfb_gpu=1.
         set_prop(child(root, 'chosen'), 'display-scale', mkadt.u32(2))
-        product = child(root, 'product')
+        product = product_node(root)
         set_prop(product, 'artwork-device-subtype', mkadt.u32(1792))
         set_prop(product, 'artwork-scale-factor', mkadt.u32(2))
         canvas = (828, 1792)
@@ -71,7 +85,7 @@ def build(canvas, dram, scale=3):
     # Synthetic, locally administered addresses, not the phone's.
     for name, last in (('wifi0', 1), ('bluetooth0', 2), ('ethernet0', 3)):
         set_prop(chosen, f'mac-address-{name}', bytes((0x02, 0x53, 0x39, 0x50, 0x4c, last)))
-    set_prop(child(root, 'product'), 'artwork-display-gamut', mkadt.cstr('sRGB'))
+    set_prop(product_node(root), 'artwork-display-gamut', mkadt.cstr('sRGB'))
     cpus = child(root, 'cpus')
     cpu0 = child(cpus, 'cpu0')
     # Probe v2: S-Boot enters on a Cortex-A55 (MIDR 0x410FD051), MPIDR 0x80000000

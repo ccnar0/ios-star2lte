@@ -1,0 +1,126 @@
+name: star2lte-xnu-boot
+
+# Package the CI-built STAR2LTE XNU kernel into an Odin AP tar.
+#
+# The xnu workflow produces kernel.development.star2lte on macOS. This
+# workflow runs after it, downloads that artifact on Linux, builds the
+# star2lte loader, generates the star2lte ADT and assembles boot.img plus
+# the Odin tar. It never flashes anything; it only uploads the artifact.
+
+on:
+  workflow_dispatch:
+    inputs:
+      xnu_run_id:
+        description: "Successful xnu run id (empty = latest successful xnu run on main)"
+        required: false
+        type: string
+  workflow_run:
+    workflows: ["xnu"]
+    types: [completed]
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  package:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Use the tools on main, not an older commit that triggered xnu.
+          ref: main
+
+      - name: Install build and LZ4 tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu device-tree-compiler lz4
+
+      - name: Resolve the xnu run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_RUN_ID: ${{ github.event.workflow_run.id }}
+          INPUT_RUN_ID: ${{ inputs.xnu_run_id }}
+        run: |
+          RUN_ID="${INPUT_RUN_ID:-$EVENT_RUN_ID}"
+          if [ -z "$RUN_ID" ]; then
+            RUN_ID=$(gh api \
+              "repos/$GITHUB_REPOSITORY/actions/workflows/xnu.yml/runs?status=success&branch=main&per_page=1" \
+              --jq '.workflow_runs[0].id')
+          fi
+          test -n "$RUN_ID" || { echo "::error::no successful xnu run found"; exit 1; }
+          echo "RUN_ID=$RUN_ID" >> "$GITHUB_ENV"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID" \
+            --jq '{id, head_sha, event, conclusion}'
+
+      - name: Download the STAR2LTE kernel artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p kernel-out
+          gh run download "$RUN_ID" -n xnu-kernel-macos-15-intel -D kernel-out
+          ls -l kernel-out
+          test -f kernel-out/kernel.development.star2lte || {
+            echo "::error::run $RUN_ID did not produce kernel.development.star2lte (compile failed?)"
+            exit 1
+          }
+
+      - name: Build the star2lte loader
+        run: sh shim/star2lte/build.sh
+
+      - name: Generate the star2lte ADT
+        run: |
+          python3 tools/mkadt_star2lte.py star2lte.adt \
+            --dram-base 0x92000000 --dram-size 0x1d800000
+
+      - name: Unpack the stock BOOT template
+        run: |
+          lz4 -d -f test-results/memmap-2026-11-06/boot.img.lz4 stock-boot.img
+          test "$(dd if=stock-boot.img bs=1 count=8 status=none)" = "ANDROID!" || {
+            echo "::error::stock template is not an Android BOOT image"
+            exit 1
+          }
+
+      - name: Assemble the Odin AP tar
+        run: |
+          python3 tools/star2lte-assemble.py \
+            --kernel kernel-out/kernel.development.star2lte \
+            --adt star2lte.adt \
+            --loader shim/star2lte/out/xnu_boot.Image \
+            --template stock-boot.img \
+            --out-dir package-out
+
+      - name: Verify the artifact
+        run: |
+          test "$(tar -tf package-out/star2lte-xnu-boot.tar)" = "boot.img"
+          python3 - <<'PY'
+          import pathlib
+          boot = pathlib.Path("package-out/boot.img").read_bytes()
+          assert boot[:8] == b"ANDROID!", "bad Android boot magic"
+          print(f"Android BOOT candidate: {len(boot)} bytes")
+          tarball = pathlib.Path("package-out/star2lte-xnu-boot.tar")
+          print(f"Odin TAR: {tarball.stat().st_size} bytes")
+          PY
+          sha256sum package-out/boot.img package-out/star2lte-xnu-boot.tar \
+            > package-out/SHA256SUMS.txt
+          cat package-out/SHA256SUMS.txt
+          printf '%s\n' \
+            "Compile-only STAR2LTE XNU. Not verified on hardware." \
+            "Odin AP slot only, Re-Partition OFF. Keep the stock BOOT image." \
+            > package-out/FLASH-WARNING.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: star2lte-xnu-odin
+          path: |
+            package-out/star2lte-xnu-boot.tar
+            package-out/boot.img
+            package-out/SHA256SUMS.txt
+            package-out/FLASH-WARNING.txt
+          if-no-files-found: error
+          retention-days: 30
