@@ -1,5 +1,5 @@
 #!/bin/sh
-# Build STAR2LTE S-Boot diagnostics. No packaging or flashing.
+# Build STAR2LTE S-Boot diagnostics and the XNU loader. No packaging or flashing.
 set -eu
 cd "$(dirname "$0")"
 : "${CROSS:=aarch64-linux-gnu-}"
@@ -32,3 +32,4 @@ image probe probe.S probe.c fbtext.c ../fdt.c
 image memmap probe.S memmap.c fdtmem.c fbtext.c
 image preflight probe.S preflight.c fdtmem.c fbtext.c
 image loader-audit probe.S loader.c fdtmem.c fbtext.c
+image xnu_boot xnu_boot.S xnu_boot.c fbtext.c ../fdt.c

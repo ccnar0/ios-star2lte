@@ -31,7 +31,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu device-tree-compiler
       - name: Check STAR2LTE ADT generator syntax
         run: python3 -m py_compile tools/mkadt_star2lte.py
-      - name: Build stage-0, memory-map and XNU preflight images
+      - name: Build stage-0, memory-map, XNU preflight and loader images
         run: sh shim/star2lte/build.sh
       - name: Test FDT memory-map parser on host
         run: |
@@ -44,8 +44,9 @@ jobs:
       - name: Inspect generated images
         run: |
           ls -l shim/star2lte/out
-          file shim/star2lte/out/probe.Image shim/star2lte/out/memmap.Image shim/star2lte/out/preflight.Image
+          file shim/star2lte/out/probe.Image shim/star2lte/out/memmap.Image shim/star2lte/out/preflight.Image shim/star2lte/out/xnu_boot.Image
           od -An -tx1 -N64 shim/star2lte/out/preflight.Image
+          od -An -tx1 -N64 shim/star2lte/out/xnu_boot.Image
       - uses: actions/upload-artifact@v4
         with:
           name: star2lte-probe
@@ -53,5 +54,6 @@ jobs:
             shim/star2lte/out/probe.Image
             shim/star2lte/out/memmap.Image
             shim/star2lte/out/preflight.Image
+            shim/star2lte/out/xnu_boot.Image
           if-no-files-found: error
           retention-days: 30
