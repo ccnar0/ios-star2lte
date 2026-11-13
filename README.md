@@ -1,5 +1,5 @@
+# ! currently not booting. bcs my s9+ screen died Will accept commits tho
 # iOS 16 bring-up for Samsung Galaxy S9+ (star2lte)
-
 **Target:** Samsung Galaxy S9+ Exynos, **SM-G965F / SM-G965FD**, SoC Exynos 9810.  
 **Current stage (2026-11-06):** Stage 0 handoff and the live FDT memory-map probe are confirmed on the physical SM-G965F. The next task is an isolated STAR2LTE XNU machine-config/build target and a minimal non-flashing loader. **XNU has not been ported to or booted on star2lte yet.**
 
